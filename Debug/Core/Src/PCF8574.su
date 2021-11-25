@@ -1,0 +1,2 @@
+PCF8574.c:10:19:PCF8574_Write_Pins	24	static
+PCF8574.c:16:19:PCF8574A_Write_Pins	24	static
