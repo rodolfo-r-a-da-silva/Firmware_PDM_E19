@@ -1,6 +1,2 @@
-pdm_readings.c:10:10:PDM_Convert_Current	16	static
-pdm_readings.c:15:10:PDM_Convert_Temperature	16	static
-pdm_readings.c:20:10:PDM_Convert_Voltage	16	static
-pdm_readings.c:25:10:PDM_Convert_MCU_Temperature	16	static
-pdm_readings.c:30:6:PDM_Next_Data_Conversion	16	static
-pdm_readings.c:60:6:PDM_Read_Data	32	static
+pdm_readings.c:10:6:PDM_Next_Data_Conversion	16	static
+pdm_readings.c:40:6:PDM_Read_Data	24	static

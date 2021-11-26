@@ -1,6 +1,8 @@
+"./Core/Src/AT24Cxx.o"
 "./Core/Src/PCF8574.o"
 "./Core/Src/main.o"
 "./Core/Src/pdm_can.o"
+"./Core/Src/pdm_config.o"
 "./Core/Src/pdm_driver_control.o"
 "./Core/Src/pdm_interrupts.o"
 "./Core/Src/pdm_pwm.o"

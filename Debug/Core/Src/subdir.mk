@@ -5,9 +5,11 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../Core/Src/AT24Cxx.c \
 ../Core/Src/PCF8574.c \
 ../Core/Src/main.c \
 ../Core/Src/pdm_can.c \
+../Core/Src/pdm_config.c \
 ../Core/Src/pdm_driver_control.c \
 ../Core/Src/pdm_interrupts.c \
 ../Core/Src/pdm_pwm.c \
@@ -19,9 +21,11 @@ C_SRCS += \
 ../Core/Src/system_stm32f4xx.c 
 
 OBJS += \
+./Core/Src/AT24Cxx.o \
 ./Core/Src/PCF8574.o \
 ./Core/Src/main.o \
 ./Core/Src/pdm_can.o \
+./Core/Src/pdm_config.o \
 ./Core/Src/pdm_driver_control.o \
 ./Core/Src/pdm_interrupts.o \
 ./Core/Src/pdm_pwm.o \
@@ -33,9 +37,11 @@ OBJS += \
 ./Core/Src/system_stm32f4xx.o 
 
 C_DEPS += \
+./Core/Src/AT24Cxx.d \
 ./Core/Src/PCF8574.d \
 ./Core/Src/main.d \
 ./Core/Src/pdm_can.d \
+./Core/Src/pdm_config.d \
 ./Core/Src/pdm_driver_control.d \
 ./Core/Src/pdm_interrupts.d \
 ./Core/Src/pdm_pwm.d \

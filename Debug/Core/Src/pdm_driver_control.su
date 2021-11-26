@@ -1,3 +1,4 @@
-pdm_driver_control.c:73:13:Output_Set	16	static
-pdm_driver_control.c:131:6:Input_Process	8	static
-pdm_driver_control.c:170:6:Output_Process	16	static
+pdm_driver_control.c:81:13:PDM_Output_Set	16	static
+pdm_driver_control.c:139:6:PDM_Input_Process	8	static
+pdm_driver_control.c:178:6:PDM_Output_Process	16	static
+pdm_driver_control.c:210:6:PDM_Output_Fuse	16	static

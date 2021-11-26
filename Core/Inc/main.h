@@ -98,8 +98,8 @@ void Error_Handler(void);
 #define OUTPUT2_GPIO_Port GPIOB
 #define OUTPUT1_Pin GPIO_PIN_1
 #define OUTPUT1_GPIO_Port GPIOB
-#define OUTPUT4_Pin GPIO_PIN_2
-#define OUTPUT4_GPIO_Port GPIOB
+#define OUTPUT4_Pin GPIO_PIN_14
+#define OUTPUT4_GPIO_Port GPIOE
 #define OUTPUT3_Pin GPIO_PIN_10
 #define OUTPUT3_GPIO_Port GPIOB
 #define INPUT13_Pin GPIO_PIN_12

@@ -36,7 +36,7 @@ Core/Src/pdm_driver_control.o: ../Core/Src/pdm_driver_control.c \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usb.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h \
- ../Core/Inc/PCF8574.h
+ ../Core/Inc/PCF8574.h ../Core/Inc/AT24Cxx.h
 
 ../Core/Inc/pdm.h:
 
@@ -115,3 +115,5 @@ Core/Src/pdm_driver_control.o: ../Core/Src/pdm_driver_control.c \
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h:
 
 ../Core/Inc/PCF8574.h:
+
+../Core/Inc/AT24Cxx.h:

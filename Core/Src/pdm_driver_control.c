@@ -8,69 +8,77 @@
 #include <pdm.h>
 
 #ifdef LQFP64
-static HAL_StatusTypeDef Expander_Output_Set(I2C_HandleTypeDef *hi2c)
+static HAL_StatusTypeDef PDM_Output_Expander_Set(I2C_HandleTypeDef *hi2c)
 {
 	HAL_StatusTypeDef retVal = HAL_OK;
-	uint8_t lever_buffer = 0;
+	uint8_t level_buffer = 0;
 
-	if(((Input_Pin_Levels & Output_Pin[8].Enabled_Inputs[0]) == Output_Pin[8].Input_Levels[0])
-			|| ((Input_Pin_Levels & Output_Pin[8].Enabled_Inputs[1]) == Output_Pin[8].Input_Levels[1]))
-	{
-		lever_buffer |= 1 << 2;
-	}
+	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[8].Enabled_Inputs[0], Output_Pin[8].Input_Levels[0],
+									 Output_Pin[8].Enabled_Inputs[1], Output_Pin[8].Input_Levels[1])
+									 && (((Driver_Safety_Flag >> 8) & 0x01) == 1)))
+		level_buffer |= 1 << 2;
+	else
+		level_buffer &= ~(1 << 2);
 
-	if(((Input_Pin_Levels & Output_Pin[9].Enabled_Inputs[0]) == Output_Pin[9].Input_Levels[0])
-			|| ((Input_Pin_Levels & Output_Pin[9].Enabled_Inputs[1]) == Output_Pin[9].Input_Levels[1]))
-	{
-		lever_buffer |= 1 << 3;
-	}
+	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[9].Enabled_Inputs[0], Output_Pin[9].Input_Levels[0],
+			 	 	 	 	 	 	 Output_Pin[9].Enabled_Inputs[1], Output_Pin[9].Input_Levels[1])
+									 && (((Driver_Safety_Flag >> 9) & 0x01) == 1)))
+		level_buffer |= 1 << 3;
+	else
+		level_buffer &= ~(1 << 3);
 
-	if(((Input_Pin_Levels & Output_Pin[10].Enabled_Inputs[0]) == Output_Pin[10].Input_Levels[0])
-			|| ((Input_Pin_Levels & Output_Pin[10].Enabled_Inputs[1]) == Output_Pin[10].Input_Levels[1]))
-	{
-		lever_buffer |= 1;
-	}
+	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[10].Enabled_Inputs[0], Output_Pin[10].Input_Levels[0],
+			 	 	 	 	 	 	 Output_Pin[10].Enabled_Inputs[1], Output_Pin[10].Input_Levels[1])
+									 && (((Driver_Safety_Flag >> 10) & 0x01) == 1)))
+		level_buffer |= 1;
+	else
+		level_buffer &= ~1;
 
-	if(((Input_Pin_Levels & Output_Pin[11].Enabled_Inputs[0]) == Output_Pin[11].Input_Levels[0])
-			|| ((Input_Pin_Levels & Output_Pin[11].Enabled_Inputs[1]) == Output_Pin[11].Input_Levels[1]))
-	{
-		lever_buffer |= 1 << 1;
-	}
+	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[11].Enabled_Inputs[0], Output_Pin[11].Input_Levels[0],
+									 Output_Pin[11].Enabled_Inputs[1], Output_Pin[11].Input_Levels[1])
+									 && (((Driver_Safety_Flag >> 11) & 0x01) == 1)))
+		level_buffer |= 1 << 1;
+	else
+		level_buffer &= ~(1 << 1);
 
-	if(((Input_Pin_Levels & Output_Pin[12].Enabled_Inputs[0]) == Output_Pin[12].Input_Levels[0])
-			|| ((Input_Pin_Levels & Output_Pin[12].Enabled_Inputs[1]) == Output_Pin[12].Input_Levels[1]))
-	{
-		lever_buffer |= 1 << 6;
-	}
+	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[12].Enabled_Inputs[0], Output_Pin[12].Input_Levels[0],
+	 	 	 	 	 	 	 	 	 Output_Pin[12].Enabled_Inputs[1], Output_Pin[12].Input_Levels[1])
+									 && (((Driver_Safety_Flag >> 12) & 0x01) == 1)))
+		level_buffer |= 1 << 6;
+	else
+		level_buffer &= ~(1 << 6);
 
-	if(((Input_Pin_Levels & Output_Pin[13].Enabled_Inputs[0]) == Output_Pin[13].Input_Levels[0])
-			|| ((Input_Pin_Levels & Output_Pin[13].Enabled_Inputs[1]) == Output_Pin[13].Input_Levels[1]))
-	{
-		lever_buffer |= 1 << 7;
-	}
+	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[13].Enabled_Inputs[0], Output_Pin[13].Input_Levels[0],
+	 	 	 	 	 	 	 	 	 Output_Pin[13].Enabled_Inputs[1], Output_Pin[13].Input_Levels[1])
+									 && (((Driver_Safety_Flag >> 13) & 0x01) == 1)))
+		level_buffer |= 1 << 7;
+	else
+		level_buffer &= ~(1 << 7);
 
-	if(((Input_Pin_Levels & Output_Pin[14].Enabled_Inputs[0]) == Output_Pin[14].Input_Levels[0])
-			|| ((Input_Pin_Levels & Output_Pin[14].Enabled_Inputs[1]) == Output_Pin[14].Input_Levels[1]))
-	{
-		lever_buffer |= 1 << 4;
-	}
+	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[14].Enabled_Inputs[0], Output_Pin[14].Input_Levels[0],
+	 	 	 	 	 	 	 	 	 Output_Pin[14].Enabled_Inputs[1], Output_Pin[14].Input_Levels[1])
+									 && (((Driver_Safety_Flag >> 14) & 0x01) == 1)))
+		level_buffer |= 1 << 4;
+	else
+		level_buffer &= ~(1 << 4);
 
-	if(((Input_Pin_Levels & Output_Pin[15].Enabled_Inputs[0]) == Output_Pin[15].Input_Levels[0])
-			|| ((Input_Pin_Levels & Output_Pin[15].Enabled_Inputs[1]) == Output_Pin[15].Input_Levels[1]))
-	{
-		lever_buffer |= 1 << 5;
-	}
+	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[15].Enabled_Inputs[0], Output_Pin[15].Input_Levels[0],
+									 Output_Pin[15].Enabled_Inputs[1], Output_Pin[15].Input_Levels[1])
+									 && (((Driver_Safety_Flag >> 15) & 0x01) == 1)))
+		level_buffer |= 1 << 5;
+	else
+		level_buffer &= ~(1 << 5);
 
-	retVal = PCF8574A_Write_Pins(hi2c, lever_buffer, 0);
+	retVal = PCF8574A_Write_Pins(hi2c, level_buffer, 0);
 
 	if(retVal == HAL_OK)
 		return retVal;
 
-	return PCF8574_Write_Pins(hi2c, lever_buffer, 0);
+	return PCF8574_Write_Pins(hi2c, level_buffer, 0);
 }
 #endif
 
-static void Output_Set(uint8_t output_pin, uint8_t output_level)
+static void PDM_Output_Set(uint8_t output_pin, uint8_t output_level)
 {
 	switch(output_pin)
 	{
@@ -128,7 +136,7 @@ static void Output_Set(uint8_t output_pin, uint8_t output_level)
 	return;
 }
 
-void Input_Process()
+void PDM_Input_Process()
 {
 	Input_Pin_Levels = 0x0000;
 
@@ -167,33 +175,65 @@ void Input_Process()
 	return;
 }
 
-void Output_Process()
+void PDM_Output_Process()
 {
 #ifndef LQFP64
-	for(uint8_t i = 4; i < 16; i++)
+	for(uint8_t i = 4; i < NBR_OF_OUTPUTS; i++)
 #else
-	for(uint8_t i = 4; i < 8; i++)
+	for(uint8_t i = 4; i < (NBR_OF_OUTPUTS - 8); i++)
 #endif
 	{
-		if(((Input_Pin_Levels & Output_Pin[i].Enabled_Inputs[0]) == Output_Pin[i].Input_Levels[0])
-				|| ((Input_Pin_Levels & Output_Pin[i].Enabled_Inputs[1]) == Output_Pin[i].Input_Levels[1]))
+		if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[i].Enabled_Inputs[0], Output_Pin[i].Input_Levels[0],
+										 Output_Pin[i].Enabled_Inputs[1], Output_Pin[i].Input_Levels[1]))
+										 && (((Driver_Safety_Flag >> i) & 0x01) == 1))
 		{
-			Output_Set(i, GPIO_PIN_SET);
+			PDM_Output_Set(i, GPIO_PIN_SET);
 		}else{
-			Output_Set(i, GPIO_PIN_RESET);
+			PDM_Output_Set(i, GPIO_PIN_RESET);
 		}
 	}
 
 #ifdef LQFP64
-	Expander_Output_Set(&hi2c1);
+	PDM_Output_Expander_Set(&hi2c1);
 #endif
 
 	PWM_Pin_Status &= 0xF0;
 
 	for(uint8_t i = 0; i < 4; i++)
 	{
-		PWM_Output_Process(&PWM_Pins[i], i);
+		PDM_PWM_Output_Process(&PWM_Pins[i], i);
 	}
+
+	return;
+}
+
+void PDM_Output_Fuse()
+{
+	uint8_t fuse_flag = 0;
+
+	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
+	{
+		if(Data_Buffer[i] > Current_Thresholds[i])
+		{
+			Accumulator_Output_Fuse[i] += Accumulator_Output_Check;
+
+			if(Accumulator_Output_Fuse[i] >= (Timeout_Output_Fuse[i] * 10))
+			{
+				Driver_Safety_Flag |= (1 << i);
+				Accumulator_Output_Fuse[i] = 0;
+				fuse_flag = 1;
+			}
+
+		}else{
+			Driver_Overcurrent_Flag &= ~(1 << i);
+			Accumulator_Output_Fuse[i] = 0;
+		}
+	}
+
+	Accumulator_Output_Check -= OUTPUT_FUSE_FREQ;
+
+	if(fuse_flag == 1)
+		PDM_Output_Process();
 
 	return;
 }
