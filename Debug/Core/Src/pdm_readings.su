@@ -1,2 +1,2 @@
-pdm_readings.c:10:6:PDM_Next_Data_Conversion	16	static
-pdm_readings.c:40:6:PDM_Read_Data	24	static
+pdm_readings.c:15:13:PDM_Next_Data_Conversion	16	static
+pdm_readings.c:53:19:PDM_Read_Data	24	static

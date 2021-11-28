@@ -48,6 +48,8 @@ DMA_HandleTypeDef hdma_adc2;
 
 CAN_HandleTypeDef hcan1;
 
+CRC_HandleTypeDef hcrc;
+
 I2C_HandleTypeDef hi2c1;
 DMA_HandleTypeDef hdma_i2c1_tx;
 
@@ -76,6 +78,7 @@ static void MX_TIM3_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_TIM7_Init(void);
 static void MX_TIM8_Init(void);
+static void MX_CRC_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -125,8 +128,9 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM7_Init();
   MX_TIM8_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
-
+  PDM_Init(&hcan1, &hi2c1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -143,34 +147,44 @@ int main(void)
 		PDM_Output_Fuse();
 	}
 
-	if(Accumulator_EEPROM_Write >= EEPROM_WRITE_CYCLE)
-	{
-
-	}
-
 	if(Accumulator_Msg_10Hz >= DATA_FREQ_10HZ)
 	{
 		Accumulator_Msg_10Hz = 0;
-		PDM_CAN_Transmit_Data(&hcan1, DATA_FREQ_10HZ);
+		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_10Hz);
 	}
 
 	if(Accumulator_Msg_25Hz >= DATA_FREQ_25HZ)
 	{
 		Accumulator_Msg_25Hz = 0;
-		PDM_CAN_Transmit_Data(&hcan1, DATA_FREQ_25HZ);
+		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_25Hz);
 	}
 
 	if(Accumulator_Msg_50Hz >= DATA_FREQ_50HZ)
 	{
 		Accumulator_Msg_50Hz = 0;
-		PDM_CAN_Transmit_Data(&hcan1, DATA_FREQ_50HZ);
+		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_50Hz);
+	}
+
+	if(Accumulator_Msg_80Hz >= DATA_FREQ_80HZ)
+	{
+		Accumulator_Msg_10Hz = 0;
+		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_80Hz);
 	}
 
 	if(Accumulator_Msg_100Hz >= DATA_FREQ_100HZ)
 	{
 		Accumulator_Msg_100Hz = 0;
-		PDM_CAN_Transmit_Data(&hcan1, DATA_FREQ_100HZ);
+		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_100Hz);
 	}
+
+	if((HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == 1) && (Accumulator_USB_Data >= DATA_FREQ_USB))
+	{
+
+		Accumulator_USB_Data = 0;
+		USB_Connected_Flag = 1;
+		PDM_USB_Transmit_Data();
+	}else
+		USB_Connected_Flag = 0;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -426,6 +440,32 @@ static void MX_CAN1_Init(void)
   /* USER CODE BEGIN CAN1_Init 2 */
 
   /* USER CODE END CAN1_Init 2 */
+
+}
+
+/**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CRC_Init(void)
+{
+
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
+  hcrc.Instance = CRC;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
 
 }
 
@@ -895,6 +935,28 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI2_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 

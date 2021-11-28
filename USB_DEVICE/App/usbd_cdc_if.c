@@ -221,11 +221,23 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
   /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
   /*******************************************************************************/
     case CDC_SET_LINE_CODING:
-
+    	USB_VCP_Parameters[0] = pbuf[0];
+    	USB_VCP_Parameters[1] = pbuf[1];
+    	USB_VCP_Parameters[2] = pbuf[2];
+    	USB_VCP_Parameters[3] = pbuf[3];
+    	USB_VCP_Parameters[4] = pbuf[4];
+    	USB_VCP_Parameters[5] = pbuf[5];
+    	USB_VCP_Parameters[6] = pbuf[6];
     break;
 
     case CDC_GET_LINE_CODING:
-
+    	pbuf[0] = USB_VCP_Parameters[0];
+    	pbuf[1] = USB_VCP_Parameters[1];
+    	pbuf[2] = USB_VCP_Parameters[2];
+    	pbuf[3] = USB_VCP_Parameters[3];
+    	pbuf[4] = USB_VCP_Parameters[4];
+    	pbuf[5] = USB_VCP_Parameters[5];
+    	pbuf[6] = USB_VCP_Parameters[6];
     break;
 
     case CDC_SET_CONTROL_LINE_STATE:
@@ -264,6 +276,10 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   /* USER CODE BEGIN 6 */
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+
+  PDM_USB_Receive(Buf, *Len);
+  PDM_USB_Transmit_Config(Buf, *Len);
+
   return (USBD_OK);
   /* USER CODE END 6 */
 }

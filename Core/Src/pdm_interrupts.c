@@ -7,26 +7,16 @@
 
 #include "pdm.h"
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-	if(htim->Instance == TIM7)
+	if(HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &CAN_Rx_Message, CAN_Rx_Data) == HAL_OK)
 	{
-		if(Accumulator_Delay > 0)
-			Accumulator_Delay--;
+		PDM_CAN_Process_Rx_Data();
 
-		return;
+		HAL_GPIO_TogglePin(CAN_RX_LED_GPIO_Port, CAN_RX_LED_Pin);
 	}
-	else if(htim->Instance == TIM6)
-	{
-		Accumulator_Output_Check++;
-		Accumulator_Msg_10Hz++;
-		Accumulator_Msg_25Hz++;
-		Accumulator_Msg_50Hz++;
-		Accumulator_Msg_100Hz++;
 
-		if(EEPROM_Write_Status == 1)
-			Accumulator_EEPROM_Write++;
-	}
+	return;
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -34,14 +24,34 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	PDM_Input_Process();
 
 	PDM_Output_Process();
+
+	return;
 }
 
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
-	if(HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &Can_Rx_Message, Can_Rx_Data) == HAL_OK)
-	{
-		PDM_CAN_Process_Rx_Data();
+	return;
+}
 
-		HAL_GPIO_TogglePin(CAN_RX_LED_GPIO_Port, CAN_RX_LED_Pin);
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
+{
+	if(htim->Instance == TIM7)
+	{
+		if(Accumulator_Delay > 0)
+			Accumulator_Delay--;
 	}
+	else if(htim->Instance == TIM6)
+	{
+		Accumulator_Output_Check++;
+		Accumulator_Msg_10Hz++;
+		Accumulator_Msg_25Hz++;
+		Accumulator_Msg_50Hz++;
+		Accumulator_Msg_80Hz++,
+		Accumulator_Msg_100Hz++;
+
+		if(USB_Connected_Flag == 1)
+			Accumulator_USB_Data++;
+	}
+
+	return;
 }

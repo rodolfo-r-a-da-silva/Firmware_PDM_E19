@@ -8,6 +8,8 @@
 #include <pdm.h>
 
 #ifdef LQFP64
+//Sets output expander pin levels
+//I2C_HandleTypeDef *hi2c - I2C handler for output expander IC
 static HAL_StatusTypeDef PDM_Output_Expander_Set(I2C_HandleTypeDef *hi2c)
 {
 	HAL_StatusTypeDef retVal = HAL_OK;
@@ -78,6 +80,9 @@ static HAL_StatusTypeDef PDM_Output_Expander_Set(I2C_HandleTypeDef *hi2c)
 }
 #endif
 
+//Sets output pin levels
+//uint8_t output_pin - number of output
+//uint8_t output_level - level of output
 static void PDM_Output_Set(uint8_t output_pin, uint8_t output_level)
 {
 	switch(output_pin)
@@ -136,6 +141,7 @@ static void PDM_Output_Set(uint8_t output_pin, uint8_t output_level)
 	return;
 }
 
+//Process input pin levels
 void PDM_Input_Process()
 {
 	Input_Pin_Levels = 0x0000;
@@ -175,6 +181,7 @@ void PDM_Input_Process()
 	return;
 }
 
+//Process output pin levels
 void PDM_Output_Process()
 {
 #ifndef LQFP64
@@ -199,7 +206,7 @@ void PDM_Output_Process()
 
 	PWM_Pin_Status &= 0xF0;
 
-	for(uint8_t i = 0; i < 4; i++)
+	for(uint8_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
 	{
 		PDM_PWM_Output_Process(&PWM_Pins[i], i);
 	}
@@ -207,17 +214,18 @@ void PDM_Output_Process()
 	return;
 }
 
+//Checks output currents and compares with thresholds and timeouts, if over both, processes outputs
 void PDM_Output_Fuse()
 {
 	uint8_t fuse_flag = 0;
 
 	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
 	{
-		if(Data_Buffer[i] > Current_Thresholds[i])
+		if(Data_Buffer[i] > Output_Pin[i].Current_Thresholds)
 		{
 			Accumulator_Output_Fuse[i] += Accumulator_Output_Check;
 
-			if(Accumulator_Output_Fuse[i] >= (Timeout_Output_Fuse[i] * 10))
+			if(Accumulator_Output_Fuse[i] >= (Output_Pin[i].Timeout_Output_Fuse * 10))
 			{
 				Driver_Safety_Flag |= (1 << i);
 				Accumulator_Output_Fuse[i] = 0;

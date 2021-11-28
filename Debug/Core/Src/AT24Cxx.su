@@ -1,5 +1,5 @@
-AT24Cxx.c:10:19:AT24Cxx_Read_Byte	40	static
-AT24Cxx.c:15:19:AT24Cxx_Write_Byte	40	static
-AT24Cxx.c:20:19:AT24Cxx_Read_Page	40	static
-AT24Cxx.c:31:19:AT24Cxx_Read_Page_DMA	32	static
-AT24Cxx.c:43:19:AT24Cxx_Write_Page	40	static
+AT24Cxx.c:10:19:AT24Cxx_Read	40	static
+AT24Cxx.c:15:19:AT24Cxx_Read_DMA	32	static
+AT24Cxx.c:20:19:AT24Cxx_Random_Read	40	static
+AT24Cxx.c:32:19:AT24Cxx_Write	40	static
+AT24Cxx.c:37:19:AT24Cxx_Write_DMA	32	static

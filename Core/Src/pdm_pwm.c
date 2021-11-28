@@ -7,21 +7,22 @@
 
 #include "pdm.h"
 
-static int16_t Linear_Interpolation(int16_t x, int16_t x0, int16_t x1, int16_t y0, int16_t y1)
-{
-	return (((y1 - y0) * (x - x0)) / (x1 - x0)) + y0;
-}
+//static int16_t Linear_Interpolation(int16_t x, int16_t x0, int16_t x1, int16_t y0, int16_t y1)
+//{
+//	return (((y1 - y0) * (x - x0)) / (x1 - x0)) + y0;
+//}
 
-static int16_t Bilinear_Interpolation(int16_t x, int16_t y, int16_t x0, int16_t x1, int16_t y0, int16_t y1, int16_t z00, int16_t z01, int16_t z10, int16_t z11)
-{
-	int16_t z[2];
+//static int16_t Bilinear_Interpolation(int16_t x, int16_t y, int16_t x0, int16_t x1, int16_t y0, int16_t y1, int16_t z00, int16_t z01, int16_t z10, int16_t z11)
+//{
+//	int16_t z[2];
+//
+//	z[0] = __PDM_LINEAR_INTERPOLATION(x, x0, x1, z00, z01);
+//	z[1] = __PDM_LINEAR_INTERPOLATION(x, x0, x1, z10, z11);
+//
+//	return __PDM_LINEAR_INTERPOLATION(y, y0, y1, z[0], z[1]);
+//}
 
-	z[0] = Linear_Interpolation(x, x0, x1, z00, z01);
-	z[1] = Linear_Interpolation(x, x0, x1, z10, z11);
-
-	return Linear_Interpolation(y, y0, y1, z[0], z[1]);
-}
-
+//Sets PWM output duty cycle using its command variables
 static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 {
 	if((pwm_struct->Command_Var[0] <= pwm_struct->Command_Var_Lim[0][0])
@@ -59,17 +60,17 @@ static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 			{
 				if(pwm_struct->Command_Var[0] <= pwm_struct->Command_Var_Lim[0][0])
 				{
-					pwm_struct->Duty_Cycle = Linear_Interpolation(pwm_struct->Command_Var[1],
-																  pwm_struct->Command_Var_Step[1][y],
-																  pwm_struct->Command_Var_Step[1][y + 1],
-																  pwm_struct->Duty_Cycle_Map[y][0],
-																  pwm_struct->Duty_Cycle_Map[y + 1][0]);
+					pwm_struct->Duty_Cycle = __PDM_LINEAR_INTERPOLATION(pwm_struct->Command_Var[1],
+																  	    pwm_struct->Command_Var_Step[1][y],
+																		pwm_struct->Command_Var_Step[1][y + 1],
+																		pwm_struct->Duty_Cycle_Map[y][0],
+																		pwm_struct->Duty_Cycle_Map[y + 1][0]);
 				}else{
-					pwm_struct->Duty_Cycle = Linear_Interpolation(pwm_struct->Command_Var[1],
-																  pwm_struct->Command_Var_Step[1][y],
-																  pwm_struct->Command_Var_Step[1][y + 1],
-																  pwm_struct->Duty_Cycle_Map[y][pwm_struct->Map_Lengths[0]],
-																  pwm_struct->Duty_Cycle_Map[y + 1][pwm_struct->Map_Lengths[0]]);
+					pwm_struct->Duty_Cycle = __PDM_LINEAR_INTERPOLATION(pwm_struct->Command_Var[1],
+																  	    pwm_struct->Command_Var_Step[1][y],
+																		pwm_struct->Command_Var_Step[1][y + 1],
+																		pwm_struct->Duty_Cycle_Map[y][pwm_struct->Map_Lengths[0]],
+																		pwm_struct->Duty_Cycle_Map[y + 1][pwm_struct->Map_Lengths[0]]);
 				}
 				return;
 			}
@@ -86,17 +87,17 @@ static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 			{
 				if(pwm_struct->Command_Var[1] <= pwm_struct->Command_Var_Lim[1][0])
 				{
-					pwm_struct->Duty_Cycle = Linear_Interpolation(pwm_struct->Command_Var[0],
-																  pwm_struct->Command_Var_Step[0][x],
-																  pwm_struct->Command_Var_Step[0][x + 1],
-																  pwm_struct->Duty_Cycle_Map[0][x],
-																  pwm_struct->Duty_Cycle_Map[0][x + 1]);
+					pwm_struct->Duty_Cycle = __PDM_LINEAR_INTERPOLATION(pwm_struct->Command_Var[0],
+																  	    pwm_struct->Command_Var_Step[0][x],
+																		pwm_struct->Command_Var_Step[0][x + 1],
+																		pwm_struct->Duty_Cycle_Map[0][x],
+																		pwm_struct->Duty_Cycle_Map[0][x + 1]);
 				}else{
-					pwm_struct->Duty_Cycle = Linear_Interpolation(pwm_struct->Command_Var[0],
-																  pwm_struct->Command_Var_Step[0][x],
-																  pwm_struct->Command_Var_Step[0][x + 1],
-																  pwm_struct->Duty_Cycle_Map[pwm_struct->Map_Lengths[1]][x],
-																  pwm_struct->Duty_Cycle_Map[pwm_struct->Map_Lengths[1]][x + 1]);
+					pwm_struct->Duty_Cycle = __PDM_LINEAR_INTERPOLATION(pwm_struct->Command_Var[0],
+																  	    pwm_struct->Command_Var_Step[0][x],
+																		pwm_struct->Command_Var_Step[0][x + 1],
+																		pwm_struct->Duty_Cycle_Map[pwm_struct->Map_Lengths[1]][x],
+																		pwm_struct->Duty_Cycle_Map[pwm_struct->Map_Lengths[1]][x + 1]);
 				}
 				return;
 			}
@@ -113,16 +114,16 @@ static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 				if((pwm_struct->Command_Var[1] >= pwm_struct->Command_Var_Step[1][y])
 					&& (pwm_struct->Command_Var[1] <= pwm_struct->Command_Var_Step[1][y + 1]))
 				{
-					pwm_struct->Duty_Cycle = Bilinear_Interpolation(pwm_struct->Command_Var[0],
-																	pwm_struct->Command_Var[1],
-																	pwm_struct->Command_Var_Step[0][x],
-																	pwm_struct->Command_Var_Step[0][x + 1],
-																	pwm_struct->Command_Var_Step[1][y],
-																	pwm_struct->Command_Var_Step[1][y + 1],
-																	pwm_struct->Duty_Cycle_Map[y][x],
-																	pwm_struct->Duty_Cycle_Map[y][x + 1],
-																	pwm_struct->Duty_Cycle_Map[y + 1][x],
-																	pwm_struct->Duty_Cycle_Map[y + 1][x + 1]);
+					pwm_struct->Duty_Cycle = __PDM_BILINEAR_INTERPOLATION(pwm_struct->Command_Var[0],
+																		  pwm_struct->Command_Var[1],
+																		  pwm_struct->Command_Var_Step[0][x],
+																		  pwm_struct->Command_Var_Step[0][x + 1],
+																		  pwm_struct->Command_Var_Step[1][y],
+																		  pwm_struct->Command_Var_Step[1][y + 1],
+																		  pwm_struct->Duty_Cycle_Map[y][x],
+																		  pwm_struct->Duty_Cycle_Map[y][x + 1],
+																		  pwm_struct->Duty_Cycle_Map[y + 1][x],
+																		  pwm_struct->Duty_Cycle_Map[y + 1][x + 1]);
 					return;
 				}
 			}
@@ -131,119 +132,51 @@ static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 	return;
 }
 
+//Initializes PWM output and sets its CAN bus filter
 void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number)
 {
 	TIM_HandleTypeDef* htim;
 	uint16_t tim_channel;
 
-#ifdef LQFP64
-	switch(pwm_out_number)
-	{
-	case 0:
-		__PDM_PWM_SELECT_TIM(&htim3, TIM_CHANNEL_4);
-		break;
-	case 1:
-		__PDM_PWM_SELECT_TIM(&htim3, TIM_CHANNEL_3);
-		break;
-	case 2:
-		__PDM_PWM_SELECT_TIM(&htim2, TIM_CHANNEL_3);
-		break;
-	case 3:
-		__PDM_PWM_SELECT_TIM(&htim2, TIM_CHANNEL_4);
-		break;
-	default:
-		return;
-	}
-#else
-	switch(pwm_out_number)
-	{
-	case 0:
-		__PDM_PWM_SELECT_TIM(&htim3, TIM_CHANNEL_4);
-		break;
-	case 1:
-		__PDM_PWM_SELECT_TIM(&htim8, TIM_CHANNEL_2);
-		break;
-	case 2:
-		__PDM_PWM_SELECT_TIM(&htim2, TIM_CHANNEL_3);
-		break;
-	case 3:
-		__PDM_PWM_SELECT_TIM(&htim1, TIM_CHANNEL_4);
-		break;
-	default:
-		return;
-	}
-#endif
+	Data_ID_Buffer[26 + pwm_out_number] |= (PWM_Pin_Status >> pwm_out_number) & 0x01;
 
-	for(uint8_t i = 0; i <= pwm_struct->Map_Lengths[0]; i++)
-	{
-		pwm_struct->Command_Var_Step[0][i] = (i * ((pwm_struct->Command_Var_Lim[0][1] - pwm_struct->Command_Var_Lim[0][0]) / pwm_struct->Map_Lengths[0])) + pwm_struct->Command_Var_Lim[0][0];
-	}
+	__PDM_PWM_SELECT_TIM(pwm_out_number);
 
-	for(uint8_t j = 0; j <= pwm_struct->Map_Lengths[1]; j++)
+	if(((PWM_Pin_Status >> pwm_out_number) & 0x01) == OUTPUT_PWM_ENABLE)
 	{
-		pwm_struct->Command_Var_Step[1][j] = (j * ((pwm_struct->Command_Var_Lim[1][1] - pwm_struct->Command_Var_Lim[1][0]) / pwm_struct->Map_Lengths[1])) + pwm_struct->Command_Var_Lim[1][0];
+		for(uint8_t i = 0; i <= pwm_struct->Map_Lengths[0]; i++)
+		{
+			pwm_struct->Command_Var_Step[0][i] = (i * ((pwm_struct->Command_Var_Lim[0][1] - pwm_struct->Command_Var_Lim[0][0]) / pwm_struct->Map_Lengths[0])) + pwm_struct->Command_Var_Lim[0][0];
+		}
+
+		for(uint8_t j = 0; j <= pwm_struct->Map_Lengths[1]; j++)
+		{
+			pwm_struct->Command_Var_Step[1][j] = (j * ((pwm_struct->Command_Var_Lim[1][1] - pwm_struct->Command_Var_Lim[1][0]) / pwm_struct->Map_Lengths[1])) + pwm_struct->Command_Var_Lim[1][0];
+		}
+
+		__HAL_TIM_SET_AUTORELOAD(htim, pwm_struct->PWM_Frequency);
+
+		PDM_PWM_CAN_Filter_Config(hcan, pwm_struct, pwm_out_number);
 	}
 
 	HAL_TIM_PWM_Start(htim, tim_channel);
 
-	__HAL_TIM_SET_AUTORELOAD(htim, pwm_struct->PWM_Frequency);
-
-	Data_Verify_Buffer[26 + pwm_out_number] = (PWM_Pin_Status >> pwm_out_number) & 0x01;
-
-	if(Data_Verify_Buffer[26 + pwm_out_number] == OUTPUT_PWM_ENABLE)
-		PDM_PWM_CAN_Filter_Config(hcan, pwm_struct, pwm_out_number);
-
-	PDM_PWM_Output_Process(pwm_struct, pwm_out_number);
+	return;
 }
 
+//Process input conditions and command variables and sets the PWM output duty cycle
 void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_number)
 {
 	TIM_HandleTypeDef* htim;
 	uint16_t tim_channel;
 
-#ifdef LQFP64
-	switch(pwm_out_number)
-	{
-	case 0:
-		__PDM_PWM_SELECT_TIM(&htim3, TIM_CHANNEL_4);
-		break;
-	case 1:
-		__PDM_PWM_SELECT_TIM(&htim3, TIM_CHANNEL_3);
-		break;
-	case 2:
-		__PDM_PWM_SELECT_TIM(&htim2, TIM_CHANNEL_3);
-		break;
-	case 3:
-		__PDM_PWM_SELECT_TIM(&htim2, TIM_CHANNEL_4)
-		break;
-	default:
-		return;
-	}
-#else
-	switch(pwm_out_number)
-	{
-	case 0:
-		__PDM_PWM_SELECT_TIM(&htim3, TIM_CHANNEL_4);
-		break;
-	case 1:
-		__PDM_PWM_SELECT_TIM(&htim8, TIM_CHANNEL_2);
-		break;
-	case 2:
-		__PDM_PWM_SELECT_TIM(&htim2, TIM_CHANNEL_3);
-		break;
-	case 3:
-		__PDM_PWM_SELECT_TIM(&htim1, TIM_CHANNEL_4);
-		break;
-	default:
-		return;
-	}
-#endif
+	__PDM_PWM_SELECT_TIM(pwm_out_number);
 
 	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[0], Output_Pin[pwm_out_number].Input_Levels[0],
 									 Output_Pin[pwm_out_number].Enabled_Inputs[1], Output_Pin[pwm_out_number].Input_Levels[1]))
 									 && (((Driver_Safety_Flag >> pwm_out_number) & 0x01) == 1))
 	{
-		if(Data_Verify_Buffer[26 + pwm_out_number] == OUTPUT_PWM_ENABLE)
+		if(Data_ID_Buffer[26 + pwm_out_number] == OUTPUT_PWM_ENABLE)
 		{
 			if(__PDM_INPUT_CONDITION_COMPARE(pwm_struct[pwm_out_number].Input_DC_Preset_Enable[0], pwm_struct->Input_DC_Preset[0],
 											 pwm_struct[pwm_out_number].Input_DC_Preset_Enable[1], pwm_struct->Input_DC_Preset[1]))

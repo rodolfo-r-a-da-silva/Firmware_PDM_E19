@@ -10,14 +10,14 @@
 
 #include "stm32f4xx_hal.h"
 
-HAL_StatusTypeDef AT24Cxx_Read_Byte(I2C_HandleTypeDef* hi2c, uint16_t MemAddress, uint8_t* pData);
+HAL_StatusTypeDef AT24Cxx_Read(I2C_HandleTypeDef* hi2c, uint16_t MemAddress_Start, uint8_t* pData, uint16_t Size);
 
-HAL_StatusTypeDef AT24Cxx_Write_Byte(I2C_HandleTypeDef* hi2c, uint16_t MemAddress, uint8_t* pData);
+HAL_StatusTypeDef AT24Cxx_Random_Read(I2C_HandleTypeDef* hi2c, uint16_t MemAddress_Start, uint8_t* pData, uint16_t Size);
 
-HAL_StatusTypeDef AT24Cxx_Read_Page(I2C_HandleTypeDef* hi2c, uint16_t MemAddress_Start, uint8_t* pData, uint16_t Size);
+HAL_StatusTypeDef AT24Cxx_Read_DMA(I2C_HandleTypeDef* hi2c, uint16_t MemAddress_Start, uint8_t* pData, uint16_t Size);
 
-HAL_StatusTypeDef AT24Cxx_Read_Page_DMA(I2C_HandleTypeDef* hi2c, uint16_t MemAddress_Start, uint8_t* pData, uint16_t Size);
+HAL_StatusTypeDef AT24Cxx_Write(I2C_HandleTypeDef* hi2c, uint16_t MemAddress_Start, uint8_t* pData, uint16_t Size);
 
-HAL_StatusTypeDef AT24Cxx_Write_Page(I2C_HandleTypeDef* hi2c, uint16_t MemAddress_Start, uint8_t* pData, uint16_t Size);
+HAL_StatusTypeDef AT24Cxx_Write_DMA(I2C_HandleTypeDef* hi2c, uint16_t MemAddress_Start, uint8_t* pData, uint16_t Size);
 
 #endif /* INC_AT24CXX_H_ */
