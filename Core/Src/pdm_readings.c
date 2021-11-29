@@ -52,8 +52,10 @@ static void PDM_Next_Data_Conversion(uint8_t next_data)
 //Returns HAL_TIM_Base_Start_IT status
 HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 {
+	//Stop us timer to reduce processing cost
 	HAL_TIM_Base_Stop_IT(&htim7);
 
+	//Convert ADC value based on selected reading and sets delay for next reading
 	switch(*data_read)
 	{
 	case Data_Read_Current0:
@@ -62,6 +64,7 @@ HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 
 		for(uint8_t i = 0; i < 8; i++)
 		{
+			//Convert ADC into current
 			Data_Buffer[i * 2] = __PDM_CONVERT_CURRENT(ADC_BUFFER[i]);
 
 			if(Data_Buffer[i * 2] > Output_Pin[i * 2].Current_Thresholds)
@@ -80,6 +83,7 @@ HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 
 		for(uint8_t i = 0; i < 8; i++)
 		{
+			//Convert ADC into current
 			Data_Buffer[(i * 2) + 1] = __PDM_CONVERT_CURRENT(ADC_BUFFER[i]);
 
 			if(Data_Buffer[(i * 2) + 1] > Output_Pin[(i * 2) + 1].Current_Thresholds)
@@ -98,6 +102,7 @@ HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 
 		for(uint8_t i = 0; i < 8; i++)
 		{
+			//Convert ADC into temperature
 			Data_Buffer[16 + i] = __PDM_CONVERT_TEMPERATURE(ADC_BUFFER[i], ADC_BUFFER[8]);
 
 			if((ADC_BUFFER[i] < ADC_THRESHOLD_LOW) || (ADC_BUFFER[i] > ADC_THRESHOLD_HIGH))
@@ -113,23 +118,30 @@ HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 
 		for(uint8_t i = 0; i < 8; i++)
 		{
+			//Convert ADC into voltage if the ADC value is valid
 			if((ADC_BUFFER[i] < ADC_THRESHOLD_LOW) || (ADC_BUFFER[i] > ADC_THRESHOLD_HIGH))
 				Data_ID_Buffer[24] &= 0xFFFE;
 			else
 			{
 				Data_Buffer[24] = __PDM_CONVERT_VOLTAGE(ADC_BUFFER[i], ADC_BUFFER[8]);
 				Data_ID_Buffer[24] |= 1;
+				break;
 			}
 		}
 
+		//If no ADC value is valid, calculate voltage with Driver 1 reading
 		if((Data_ID_Buffer[24] & 0xFFFE) == 0)
 			Data_Buffer[0] = __PDM_CONVERT_VOLTAGE(ADC_BUFFER[0], ADC_BUFFER[8]);
+
 		break;
 	}
 
+	//Convert ADC into MCU temperature
 	Data_Buffer[25] = __PDM_CONVERT_MCU_TEMPERATURE(ADC_BUFFER[9]);
 
+	//Sets multiplexer for next data conversion
 	PDM_Next_Data_Conversion(*data_read);
 
+	//Restart us timer
 	return HAL_TIM_Base_Start_IT(&htim7);
 }

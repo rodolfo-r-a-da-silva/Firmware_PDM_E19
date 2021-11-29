@@ -190,6 +190,7 @@ void PDM_Output_Process()
 	for(uint8_t i = 4; i < (NBR_OF_OUTPUTS - 8); i++)
 #endif
 	{
+		//Check if virtual fuse isn't tripped and if the input pins match their enabled states
 		if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[i].Enabled_Inputs[0], Output_Pin[i].Input_Levels[0],
 										 Output_Pin[i].Enabled_Inputs[1], Output_Pin[i].Input_Levels[1]))
 										 && (((Driver_Safety_Flag >> i) & 0x01) == 1))
@@ -204,8 +205,7 @@ void PDM_Output_Process()
 	PDM_Output_Expander_Set(&hi2c1);
 #endif
 
-	PWM_Pin_Status &= 0xF0;
-
+	//Checks each PWM able output individually
 	for(uint8_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
 	{
 		PDM_PWM_Output_Process(&PWM_Pins[i], i);

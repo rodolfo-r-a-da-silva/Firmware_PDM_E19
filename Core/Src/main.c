@@ -137,54 +137,65 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	//Convert ADC values to data channels
 	if(Accumulator_Delay == 0)
 	{
 		PDM_Read_Data(&Data_Conversion);
 	}
 
+	//check if output currents are below thresholds and timeouts
 	if(Accumulator_Output_Check >= OUTPUT_FUSE_FREQ)
 	{
 		PDM_Output_Fuse();
 	}
 
+	//Transmit 10 Hz data channels via CAN bus if accumulator is above time threshold
 	if(Accumulator_Msg_10Hz >= DATA_FREQ_10HZ)
 	{
 		Accumulator_Msg_10Hz = 0;
 		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_10Hz);
 	}
 
+	//Transmit 25 Hz data channels via CAN bus if accumulator is above time threshold
 	if(Accumulator_Msg_25Hz >= DATA_FREQ_25HZ)
 	{
 		Accumulator_Msg_25Hz = 0;
 		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_25Hz);
 	}
 
+	//Transmit 50 Hz data channels via CAN bus if accumulator is above time threshold
 	if(Accumulator_Msg_50Hz >= DATA_FREQ_50HZ)
 	{
 		Accumulator_Msg_50Hz = 0;
 		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_50Hz);
 	}
 
+	//Transmit 80 Hz data channels via CAN bus if accumulator is above time threshold
 	if(Accumulator_Msg_80Hz >= DATA_FREQ_80HZ)
 	{
 		Accumulator_Msg_10Hz = 0;
 		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_80Hz);
 	}
 
+	//Transmit 100 Hz data channels via CAN bus if accumulator is above time threshold
 	if(Accumulator_Msg_100Hz >= DATA_FREQ_100HZ)
 	{
 		Accumulator_Msg_100Hz = 0;
 		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_100Hz);
 	}
 
-	if((HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == 1) && (Accumulator_USB_Data >= DATA_FREQ_USB))
+	//Checks if USB accumulator is above time threshold
+	if((Accumulator_USB_Data >= DATA_FREQ_USB))
 	{
-
 		Accumulator_USB_Data = 0;
-		USB_Connected_Flag = 1;
-		PDM_USB_Transmit_Data();
-	}else
-		USB_Connected_Flag = 0;
+
+		//If connected, send data channels via USB
+		if((HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_SET) && (USB_Connected_Flag == 1))
+			PDM_USB_Transmit_Data();
+		//If disconnected reset flag
+		else
+			USB_Connected_Flag = 0;
+	}
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

@@ -1,9 +1,9 @@
 pdm_config.c:14:13:PDM_Load_Config_Buffer	32	static
-pdm_config.c:85:13:PDM_Load_Map_Buffer	32	static
-pdm_config.c:110:13:PDM_Write_Config_Buffer	32	static
-pdm_config.c:176:13:PDM_Write_Map_Buffer	24	static
-pdm_config.c:201:6:PDM_Init	1208	static
-pdm_config.c:236:19:PDM_USB_Receive	48	dynamic
-pdm_config.c:289:6:PDM_USB_Transmit_Config	1224	static
-pdm_config.c:329:6:PDM_USB_Transmit_Data	88	static
-pdm_config.c:356:13:PDM_Hard_Code_Config	4	static
+pdm_config.c:92:13:PDM_Load_Map_Buffer	32	static
+pdm_config.c:118:13:PDM_Write_Config_Buffer	32	static
+pdm_config.c:190:13:PDM_Write_Map_Buffer	24	static
+pdm_config.c:216:6:PDM_Init	1208	static
+pdm_config.c:262:19:PDM_USB_Receive	32	static
+pdm_config.c:322:6:PDM_USB_Transmit_Config	1224	static
+pdm_config.c:380:6:PDM_USB_Transmit_Data	88	static
+pdm_config.c:412:13:PDM_Hard_Code_Config	4	static

@@ -25,6 +25,7 @@
 //Sets PWM output duty cycle using its command variables
 static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 {
+	//Checks if both command variables are above the collum and line limits and attributes the map's closest corner value
 	if((pwm_struct->Command_Var[0] <= pwm_struct->Command_Var_Lim[0][0])
 		&& (pwm_struct->Command_Var[1] <= pwm_struct->Command_Var_Lim[1][0]))
 	{
@@ -50,14 +51,17 @@ static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 		return;
 	}
 
+	//Check if the command variable point is outside the collums of the 3D map
 	if((pwm_struct->Command_Var[0] <= pwm_struct->Command_Var_Lim[0][0])
 		|| (pwm_struct->Command_Var[0] >= pwm_struct->Command_Var_Lim[0][1]))
 	{
 		for(uint8_t y = 0; y < pwm_struct->Map_Lengths[1]; y++)
 		{
+			//Checks if the command variable point is inside the y, y + 1 line
 			if((pwm_struct->Command_Var[1] >= pwm_struct->Command_Var_Step[1][y])
 				&& (pwm_struct->Command_Var[1] <= pwm_struct->Command_Var_Step[1][y + 1]))
 			{
+				//Checks if the command variable point is to the left or to the right of the 3D map then sets duty cycle via linear interpolation
 				if(pwm_struct->Command_Var[0] <= pwm_struct->Command_Var_Lim[0][0])
 				{
 					pwm_struct->Duty_Cycle = __PDM_LINEAR_INTERPOLATION(pwm_struct->Command_Var[1],
@@ -77,14 +81,17 @@ static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 		}
 	}
 
+	//Check if the command variable point is outside the lines of the 3D map
 	if((pwm_struct->Command_Var[1] <= pwm_struct->Command_Var_Lim[1][0])
 		|| (pwm_struct->Command_Var[1] >= pwm_struct->Command_Var_Lim[1][1]))
 	{
 		for(uint8_t x = 0; x < pwm_struct->Map_Lengths[0]; x++)
 		{
+			//Checks if the command variable point is inside the x, x + 1 collum
 			if((pwm_struct->Command_Var[0] >= pwm_struct->Command_Var_Step[0][x])
 				&& (pwm_struct->Command_Var[0] <= pwm_struct->Command_Var_Step[0][x + 1]))
 			{
+				//Checks if the command variable point is above or below the 3D map then sets duty cycle via linear interpolation
 				if(pwm_struct->Command_Var[1] <= pwm_struct->Command_Var_Lim[1][0])
 				{
 					pwm_struct->Duty_Cycle = __PDM_LINEAR_INTERPOLATION(pwm_struct->Command_Var[0],
@@ -104,13 +111,16 @@ static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 		}
 	}
 
+	//Since the command vaiable point is inside the map's boundary, sets duty cycle via bilinear interpolation
 	for(uint8_t x = 0; x < pwm_struct->Map_Lengths[0]; x++)
 	{
+		//Checks if the command variable point is inside the x, x + 1 collum
 		if((pwm_struct->Command_Var[0] >= pwm_struct->Command_Var_Step[0][x])
 			&& (pwm_struct->Command_Var[0] <= pwm_struct->Command_Var_Step[0][x + 1]))
 		{
 			for(uint8_t y = 0; y < pwm_struct->Map_Lengths[1]; y++)
 			{
+				//Checks if the command variable point is inside the y, y + 1 line
 				if((pwm_struct->Command_Var[1] >= pwm_struct->Command_Var_Step[1][y])
 					&& (pwm_struct->Command_Var[1] <= pwm_struct->Command_Var_Step[1][y + 1]))
 				{
@@ -138,27 +148,36 @@ void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8
 	TIM_HandleTypeDef* htim;
 	uint16_t tim_channel;
 
-	Data_ID_Buffer[26 + pwm_out_number] |= (PWM_Pin_Status >> pwm_out_number) & 0x01;
+	//Sets the verify bit of the PWM output to sign if PWM is enabled
+	Data_ID_Buffer[NBR_OF_DATA_CHANNELS - NBR_OF_PWM_OUTPUTS + pwm_out_number] |= (PWM_Pin_Status >> pwm_out_number) & 0x01;
 
+	//Select TIM_HandleTypeDef and channel based on pwm_out_number
 	__PDM_PWM_SELECT_TIM(pwm_out_number);
 
+	//Sets PWM parameters if PWM is enabled
 	if(((PWM_Pin_Status >> pwm_out_number) & 0x01) == OUTPUT_PWM_ENABLE)
 	{
-		for(uint8_t i = 0; i <= pwm_struct->Map_Lengths[0]; i++)
-		{
-			pwm_struct->Command_Var_Step[0][i] = (i * ((pwm_struct->Command_Var_Lim[0][1] - pwm_struct->Command_Var_Lim[0][0]) / pwm_struct->Map_Lengths[0])) + pwm_struct->Command_Var_Lim[0][0];
-		}
-
-		for(uint8_t j = 0; j <= pwm_struct->Map_Lengths[1]; j++)
-		{
-			pwm_struct->Command_Var_Step[1][j] = (j * ((pwm_struct->Command_Var_Lim[1][1] - pwm_struct->Command_Var_Lim[1][0]) / pwm_struct->Map_Lengths[1])) + pwm_struct->Command_Var_Lim[1][0];
-		}
-
+		//Sets the PWM frequency
 		__HAL_TIM_SET_AUTORELOAD(htim, pwm_struct->PWM_Frequency);
 
-		PDM_PWM_CAN_Filter_Config(hcan, pwm_struct, pwm_out_number);
+		//Sets CAN filter and duty cycle map steps if PWM CAN is enabled
+		if(((PWM_Pin_Status >> pwm_out_number) & 0x10) == OUTPUT_PWM_CAN_ENABLE)
+		{
+			PDM_PWM_CAN_Filter_Config(hcan, pwm_struct, pwm_out_number);
+
+			for(uint8_t i = 0; i <= pwm_struct->Map_Lengths[0]; i++)
+			{
+				pwm_struct->Command_Var_Step[0][i] = (i * ((pwm_struct->Command_Var_Lim[0][1] - pwm_struct->Command_Var_Lim[0][0]) / pwm_struct->Map_Lengths[0])) + pwm_struct->Command_Var_Lim[0][0];
+			}
+
+			for(uint8_t j = 0; j <= pwm_struct->Map_Lengths[1]; j++)
+			{
+				pwm_struct->Command_Var_Step[1][j] = (j * ((pwm_struct->Command_Var_Lim[1][1] - pwm_struct->Command_Var_Lim[1][0]) / pwm_struct->Map_Lengths[1])) + pwm_struct->Command_Var_Lim[1][0];
+			}
+		}
 	}
 
+	//Start the PWM timer
 	HAL_TIM_PWM_Start(htim, tim_channel);
 
 	return;
@@ -170,23 +189,29 @@ void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_numb
 	TIM_HandleTypeDef* htim;
 	uint16_t tim_channel;
 
+	//Select TIM_HandleTypeDef and channel based on pwm_out_number
 	__PDM_PWM_SELECT_TIM(pwm_out_number);
 
+	//Check if virtual fuse isn't tripped and if the input pins match their enabled states
 	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[0], Output_Pin[pwm_out_number].Input_Levels[0],
 									 Output_Pin[pwm_out_number].Enabled_Inputs[1], Output_Pin[pwm_out_number].Input_Levels[1]))
-									 && (((Driver_Safety_Flag >> pwm_out_number) & 0x01) == 1))
+									 && (((Driver_Safety_Flag >> pwm_out_number) & 0x0001) == 1))
 	{
-		if(Data_ID_Buffer[26 + pwm_out_number] == OUTPUT_PWM_ENABLE)
+		//Checks if the output is enabled as PWM, if i isn't, just sets it at 100%
+		if(Data_ID_Buffer[NBR_OF_DATA_CHANNELS - NBR_OF_PWM_OUTPUTS + pwm_out_number] == OUTPUT_PWM_ENABLE)
 		{
+			//Checks if the inputs match the first PWM preset
 			if(__PDM_INPUT_CONDITION_COMPARE(pwm_struct[pwm_out_number].Input_DC_Preset_Enable[0], pwm_struct->Input_DC_Preset[0],
 											 pwm_struct[pwm_out_number].Input_DC_Preset_Enable[1], pwm_struct->Input_DC_Preset[1]))
 			{
 				pwm_struct->Duty_Cycle = pwm_struct->Duty_Cycle_Preset[0];
 			}
+			//Checks if the inputs match the second PWM preset
 			else if(__PDM_INPUT_CONDITION_COMPARE(pwm_struct[pwm_out_number].Input_DC_Preset_Enable[2], pwm_struct->Input_DC_Preset[2],
 					 	 	 	 	 	 	 	  pwm_struct[pwm_out_number].Input_DC_Preset_Enable[3], pwm_struct->Input_DC_Preset[3]))
 			{
 				pwm_struct->Duty_Cycle = pwm_struct->Duty_Cycle_Preset[1];
+			//If no preset is matched, set PWM duty cycle using the 3D map
 			}else{
 				PDM_PWM_Duty_Cycle_Set(pwm_struct);
 			}
@@ -197,9 +222,11 @@ void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_numb
 		pwm_struct->Duty_Cycle = 0;
 	}
 
+
 	__HAL_TIM_SET_COMPARE(htim, tim_channel, (htim->Init.Period * pwm_struct->Duty_Cycle) / 1000);
 
-	Data_Buffer[26 + pwm_out_number] = pwm_struct->Duty_Cycle;
+	//Stores output duty cycle inside the data buffer to be sent via CAN/USB
+	Data_Buffer[NBR_OF_DATA_CHANNELS - NBR_OF_PWM_OUTPUTS + pwm_out_number] = pwm_struct->Duty_Cycle;
 
 	return;
 }
