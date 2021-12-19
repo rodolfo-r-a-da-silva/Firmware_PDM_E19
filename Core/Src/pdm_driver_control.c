@@ -193,7 +193,7 @@ void PDM_Output_Process()
 		//Check if virtual fuse isn't tripped and if the input pins match their enabled states
 		if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[i].Enabled_Inputs[0], Output_Pin[i].Input_Levels[0],
 										 Output_Pin[i].Enabled_Inputs[1], Output_Pin[i].Input_Levels[1]))
-										 && (((Driver_Safety_Flag >> i) & 0x01) == 1))
+										 && (((Driver_Safety_Flag >> i) & 0x01) == 0))
 		{
 			PDM_Output_Set(i, GPIO_PIN_SET);
 		}else{
@@ -221,6 +221,9 @@ void PDM_Output_Fuse()
 
 	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
 	{
+		if(Output_Pin[i].Current_Thresholds == 0)
+			continue;
+
 		if(Data_Buffer[i] > Output_Pin[i].Current_Thresholds)
 		{
 			Accumulator_Output_Fuse[i] += Accumulator_Output_Check;

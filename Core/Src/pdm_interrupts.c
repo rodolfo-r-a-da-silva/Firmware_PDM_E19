@@ -37,17 +37,20 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
 {
 	if(htim->Instance == TIM7)
 	{
-		if(Accumulator_Delay > 0)
-			Accumulator_Delay--;
+		Accumulator_Delay += 10;
 	}
-	else if(htim->Instance == TIM6)
+
+	if(htim->Instance == TIM6)
 	{
-		Accumulator_Output_Check++;
 		Accumulator_Msg_10Hz++;
 		Accumulator_Msg_25Hz++;
 		Accumulator_Msg_50Hz++;
 		Accumulator_Msg_80Hz++,
 		Accumulator_Msg_100Hz++;
+
+		Accumulator_Output_Check++;
+		Accumulator_Temp_Read++;
+		Accumulator_Volt_Read++;
 
 		if(USB_Connected_Flag == 1)
 			Accumulator_USB_Data++;

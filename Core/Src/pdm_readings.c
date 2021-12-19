@@ -59,8 +59,7 @@ HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 	switch(*data_read)
 	{
 	case Data_Read_Current0:
-		*data_read = Data_Read_Current0;
-		Accumulator_Delay = READING_DELAY_CURRENT1;
+		*data_read = Data_Read_Current1;
 
 		for(uint8_t i = 0; i < 8; i++)
 		{
@@ -78,8 +77,7 @@ HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 		break;
 
 	case Data_Read_Current1:
-		*data_read = Data_Read_Temperature;
-		Accumulator_Delay = READING_DELAY_TEMPERATURE;
+		*data_read = Data_Read_Current0;
 
 		for(uint8_t i = 0; i < 8; i++)
 		{
@@ -94,11 +92,17 @@ HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 			else
 				Data_ID_Buffer[(i * 2) + 1] &= 0xFFFE;
 		}
+
+		if(Accumulator_Temp_Read >= READING_DELAY_TEMP)
+			*data_read = Data_Read_Temperature;
+
+		else if(Accumulator_Volt_Read >= READING_DELAY_VOLT)
+			*data_read = Data_Read_Voltage;
+
 		break;
 
 	case Data_Read_Temperature:
-		*data_read = Data_Read_Voltage;
-		Accumulator_Delay = READING_DELAY_VOLTAGE;
+		*data_read = Data_Read_Current0;
 
 		for(uint8_t i = 0; i < 8; i++)
 		{
@@ -114,7 +118,6 @@ HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 
 	case Data_Read_Voltage:
 		*data_read = Data_Read_Current0;
-		Accumulator_Delay = READING_DELAY_CURRENT0;
 
 		for(uint8_t i = 0; i < 8; i++)
 		{
@@ -141,6 +144,8 @@ HAL_StatusTypeDef PDM_Read_Data(uint8_t *data_read)
 
 	//Sets multiplexer for next data conversion
 	PDM_Next_Data_Conversion(*data_read);
+
+	Accumulator_Delay = 0;
 
 	//Restart us timer
 	return HAL_TIM_Base_Start_IT(&htim7);

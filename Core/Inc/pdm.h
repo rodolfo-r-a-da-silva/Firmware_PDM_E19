@@ -22,8 +22,10 @@
 #define NBR_OF_OUTPUTS				16
 #define NBR_OF_PWM_OUTPUTS			4
 
-#define EEPROM_BUFFER_SIZE			(12 * NBR_OF_OUTPUTS) + 2 + (NBR_OF_PWM_OUTPUTS * 16) + NBR_OF_DATA_CHANNELS
-#define EEPROM_MAP_BUFFER_SIZE		(NBR_OF_PWM_OUTPUTS * PWM_TABLE_MAX_SIZE * PWM_TABLE_MAX_SIZE)
+#define EEPROM_OUTPUT_SIZE			(NBR_OF_OUTPUTS * 6 * sizeof(uint16_t))
+#define EEPROM_PWM_CONFIG_SIZE		(NBR_OF_PWM_OUTPUTS * ((5 * sizeof(uint8_t)) + (14 * sizeof(uint16_t)) + (2 * sizeof(uint32_t))))
+#define EEPROM_PWM_MAP_BUFFER_SIZE	(NBR_OF_PWM_OUTPUTS * PWM_TABLE_MAX_SIZE * PWM_TABLE_MAX_SIZE * sizeof(uint16_t))
+#define EEPROM_BUFFER_SIZE			(EEPROM_OUTPUT_SIZE + EEPROM_PWM_CONFIG_SIZE + EEPROM_PWM_MAP_BUFFER_SIZE + ((2 + NBR_OF_DATA_CHANNELS) * sizeof(uint8_t)))
 #define EEPROM_WRITE_CYCLE			50
 
 #define OUTPUT_PWM_ENABLE			0x01
@@ -63,16 +65,18 @@
 #define ADC_THRESHOLD_LOW			10
 #define ADC_THRESHOLD_HIGH			4000
 
+//us
 #define READING_ADC_DELAY			140
-#define READING_DELAY_CURRENT0		20 + READING_ADC_DELAY
-#define READING_DELAY_CURRENT1		20 + READING_ADC_DELAY
-#define READING_DELAY_TEMPERATURE	60 + READING_ADC_DELAY
-#define READING_DELAY_VOLTAGE		20 + READING_ADC_DELAY
+#define READING_DELAY				60 + READING_ADC_DELAY
+//ms
+#define READING_DELAY_TEMP			10
+#define READING_DELAY_VOLT			10
 
-#define USB_COMMAND_READ_CONFIG		0x8001
-#define USB_COMMAND_WRITE_CONFIG	0x4002
-#define USB_COMMAND_WRITE_MAP		0xC003
-#define USB_COMMAND_READ_DATA		0x2004
+#define USB_COMMAND_CONNECT			0x01
+#define USB_COMMAND_DISCONNECT		0x02
+#define USB_COMMAND_READ_CONFIG		0x03
+#define USB_COMMAND_WRITE_CONFIG	0x04
+#define USB_COMMAND_READ_DATA		0x05
 /*END DEFINES*/
 
 /*BEGIN MACROS*/
@@ -81,8 +85,8 @@
 			Data_ID_Buffer[i] = i << 1;
 
 #define __PDM_INPUT_CONDITION_COMPARE(__ENABLED_INPUTS0__, __INPUT_LEVELS0__, __ENABLED_INPUTS1__, __INPUT_LEVELS1__)	\
-		(((Input_Pin_Levels & (__ENABLED_INPUTS0__)) == (__INPUT_LEVELS0__)) 											\
-		|| ((Input_Pin_Levels & (__ENABLED_INPUTS1__)) == (__INPUT_LEVELS1__)))
+		((((Input_Pin_Levels & (__ENABLED_INPUTS0__)) == (__INPUT_LEVELS0__)) && ((__ENABLED_INPUTS0__) != 0x0000))		\
+		|| (((Input_Pin_Levels & (__ENABLED_INPUTS1__)) == (__INPUT_LEVELS1__)) && ((__ENABLED_INPUTS1__) != 0x0000)))
 
 #ifdef LQFP64
 #define __PDM_PWM_SELECT_TIM(__PWM_OUT_NUMBER__)	\
@@ -133,7 +137,7 @@
 #endif
 
 #define __PDM_LINEAR_INTERPOLATION(__X__, __X0__, __X1__, __Y0__, __Y1__)						\
-		(((((__Y1__) - (__Y0__) * ((__X__) - (__X0__))) / ((__X1__) - (__X0__))) + (__Y0__)))
+		(((((__X__) - (__X0__)) * ((__Y1__) - (__Y0__))) / ((__X1__) - (__X0__))) + (__Y0__))
 
 #define __PDM_BILINEAR_INTERPOLATION(__X__, __Y__, __X0__, __X1__, __Y0__, __Y1__, __Z00__, __Z01__, __Z10__, __Z11__)	\
 		__PDM_LINEAR_INTERPOLATION((__Y__), (__Y0__), (__Y1__),															\
@@ -228,32 +232,43 @@ typedef struct{
 	uint8_t PWM_Frequency;
 	uint16_t Duty_Cycle;
 
+	//Used to set specific duty cycles
 	uint16_t Input_DC_Preset_Enable[4];
 	uint16_t Input_DC_Preset[4];
 	uint16_t Duty_Cycle_Preset[2];
 
+	//Used for PWM CAN
 	uint8_t Command_Var_Position[2];
 	uint32_t Command_Var_CAN_ID[2];
 
 	uint8_t Map_Lengths[2];
 	int16_t Command_Var[2];
+	//[0][i]: column; [1][j]: line
 	int16_t Command_Var_Lim[2][2];
-	int16_t Command_Var_Step[PWM_TABLE_MAX_SIZE][2];
+	int16_t Command_Var_Step[2][PWM_TABLE_MAX_SIZE];
+	//[line][column]
 	uint16_t Duty_Cycle_Map[PWM_TABLE_MAX_SIZE][PWM_TABLE_MAX_SIZE];
 }PWM_Control_Struct;
 /*END STRUCT TYPEDEFS*/
 
 /*BEGIN EXTERNAL VARIABLES*/
-CRC_HandleTypeDef hcrc;
+extern ADC_HandleTypeDef hadc1;
+extern ADC_HandleTypeDef hadc2;
+
+extern CRC_HandleTypeDef hcrc;
 
 extern I2C_HandleTypeDef hi2c1;
 
+#ifndef LQFP64
 extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim8;
+#endif
+
+
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim6;
 extern TIM_HandleTypeDef htim7;
-extern TIM_HandleTypeDef htim8;
 /*END EXTERNAL VARIABLES*/
 
 /*BEGIN DECLARED VARIABLES*/
@@ -292,15 +307,18 @@ Output_Control_Struct Output_Pin[16];
 PWM_Control_Struct PWM_Pins[4];
 
 //TIMING
+int32_t Accumulator_Delay;
+
 uint32_t
-	Accumulator_Delay,
-	Accumulator_Output_Check,
 	Accumulator_Msg_10Hz,
 	Accumulator_Msg_25Hz,
 	Accumulator_Msg_50Hz,
 	Accumulator_Msg_80Hz,
 	Accumulator_Msg_100Hz,
 	Accumulator_USB_Data,
+	Accumulator_Output_Check,
+	Accumulator_Temp_Read,
+	Accumulator_Volt_Read,
 	Accumulator_Output_Fuse[16];
 /*END DECLARED VARIABLES*/
 
@@ -317,9 +335,7 @@ void PDM_CAN_Process_Rx_Data();
 /*BEGIN CONFIGURATION FUNCTION PROTOTYPES*/
 void PDM_Init(CAN_HandleTypeDef *hcan, I2C_HandleTypeDef *hi2c);
 
-HAL_StatusTypeDef PDM_USB_Receive(uint8_t *Data, uint16_t Size);
-
-void PDM_USB_Transmit_Config(uint8_t *command, uint16_t Size);
+void PDM_USB_Process(uint8_t *Data, uint16_t Size);
 
 void PDM_USB_Transmit_Data();
 

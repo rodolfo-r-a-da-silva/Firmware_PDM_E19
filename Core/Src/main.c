@@ -137,65 +137,65 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	//Convert ADC values to data channels
-	if(Accumulator_Delay == 0)
-	{
-		PDM_Read_Data(&Data_Conversion);
-	}
+	  //Convert ADC values to data channels
+	  if(Accumulator_Delay >= READING_DELAY)
+	  {
+		  PDM_Read_Data(&Data_Conversion);
+	  }
 
-	//check if output currents are below thresholds and timeouts
-	if(Accumulator_Output_Check >= OUTPUT_FUSE_FREQ)
-	{
-		PDM_Output_Fuse();
-	}
+	  //check if output currents are below thresholds and timeouts
+	  if(Accumulator_Output_Check >= OUTPUT_FUSE_FREQ)
+	  {
+		  PDM_Output_Fuse();
+	  }
 
-	//Transmit 10 Hz data channels via CAN bus if accumulator is above time threshold
-	if(Accumulator_Msg_10Hz >= DATA_FREQ_10HZ)
-	{
-		Accumulator_Msg_10Hz = 0;
-		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_10Hz);
-	}
+	  //Transmit 10 Hz data channels via CAN bus if accumulator is above time threshold
+	  if(Accumulator_Msg_10Hz >= DATA_FREQ_10HZ)
+	  {
+		  Accumulator_Msg_10Hz = 0;
+		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_10Hz);
+	  }
 
-	//Transmit 25 Hz data channels via CAN bus if accumulator is above time threshold
-	if(Accumulator_Msg_25Hz >= DATA_FREQ_25HZ)
-	{
-		Accumulator_Msg_25Hz = 0;
-		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_25Hz);
-	}
+	  //Transmit 25 Hz data channels via CAN bus if accumulator is above time threshold
+	  if(Accumulator_Msg_25Hz >= DATA_FREQ_25HZ)
+	  {
+		  Accumulator_Msg_25Hz = 0;
+		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_25Hz);
+	  }
 
-	//Transmit 50 Hz data channels via CAN bus if accumulator is above time threshold
-	if(Accumulator_Msg_50Hz >= DATA_FREQ_50HZ)
-	{
-		Accumulator_Msg_50Hz = 0;
-		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_50Hz);
-	}
+	  //Transmit 50 Hz data channels via CAN bus if accumulator is above time threshold
+	  if(Accumulator_Msg_50Hz >= DATA_FREQ_50HZ)
+	  {
+		  Accumulator_Msg_50Hz = 0;
+		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_50Hz);
+	  }
 
-	//Transmit 80 Hz data channels via CAN bus if accumulator is above time threshold
-	if(Accumulator_Msg_80Hz >= DATA_FREQ_80HZ)
-	{
-		Accumulator_Msg_10Hz = 0;
-		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_80Hz);
-	}
+	  //Transmit 80 Hz data channels via CAN bus if accumulator is above time threshold
+	  if(Accumulator_Msg_80Hz >= DATA_FREQ_80HZ)
+	  {
+		  Accumulator_Msg_80Hz = 0;
+		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_80Hz);
+	  }
 
-	//Transmit 100 Hz data channels via CAN bus if accumulator is above time threshold
-	if(Accumulator_Msg_100Hz >= DATA_FREQ_100HZ)
-	{
-		Accumulator_Msg_100Hz = 0;
-		PDM_CAN_Transmit_Data(&hcan1, Data_Freq_100Hz);
-	}
+	  //Transmit 100 Hz data channels via CAN bus if accumulator is above time threshold
+	  if(Accumulator_Msg_100Hz >= DATA_FREQ_100HZ)
+	  {
+		  Accumulator_Msg_100Hz = 0;
+		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_100Hz);
+	  }
 
-	//Checks if USB accumulator is above time threshold
-	if((Accumulator_USB_Data >= DATA_FREQ_USB))
-	{
-		Accumulator_USB_Data = 0;
+	  //Checks if USB accumulator is above time threshold
+	  if((Accumulator_USB_Data >= DATA_FREQ_USB))
+	  {
+		  Accumulator_USB_Data = 0;
 
-		//If connected, send data channels via USB
-		if((HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_SET) && (USB_Connected_Flag == 1))
-			PDM_USB_Transmit_Data();
-		//If disconnected reset flag
-		else
-			USB_Connected_Flag = 0;
-	}
+		  //If connected, send data channels via USB
+		  if((HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_SET) && (USB_Connected_Flag == 1))
+			  PDM_USB_Transmit_Data();
+		  //If disconnected reset flag
+		  else
+			  USB_Connected_Flag = 0;
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -290,7 +290,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Channel = ADC_CHANNEL_5;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
@@ -299,7 +299,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Channel = ADC_CHANNEL_6;
   sConfig.Rank = 2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
@@ -307,7 +307,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Channel = ADC_CHANNEL_7;
   sConfig.Rank = 3;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
@@ -315,7 +315,7 @@ static void MX_ADC1_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_3;
+  sConfig.Channel = ADC_CHANNEL_14;
   sConfig.Rank = 4;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
@@ -372,7 +372,7 @@ static void MX_ADC2_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
@@ -381,7 +381,7 @@ static void MX_ADC2_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_5;
+  sConfig.Channel = ADC_CHANNEL_1;
   sConfig.Rank = 2;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
   {
@@ -389,7 +389,7 @@ static void MX_ADC2_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_6;
+  sConfig.Channel = ADC_CHANNEL_2;
   sConfig.Rank = 3;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
   {
@@ -397,7 +397,7 @@ static void MX_ADC2_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_7;
+  sConfig.Channel = ADC_CHANNEL_3;
   sConfig.Rank = 4;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
   {
@@ -405,7 +405,7 @@ static void MX_ADC2_Init(void)
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_14;
+  sConfig.Channel = ADC_CHANNEL_4;
   sConfig.Rank = 5;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
   {
@@ -764,7 +764,7 @@ static void MX_TIM7_Init(void)
   htim7.Instance = TIM7;
   htim7.Init.Prescaler = 8;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim7.Init.Period = 9;
+  htim7.Init.Period = 99;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
   {
@@ -1007,4 +1007,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
