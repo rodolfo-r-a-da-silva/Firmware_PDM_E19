@@ -15,58 +15,58 @@ static HAL_StatusTypeDef PDM_Output_Expander_Set(I2C_HandleTypeDef *hi2c)
 	HAL_StatusTypeDef retVal = HAL_OK;
 	uint8_t level_buffer = 0;
 
-	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[8].Enabled_Inputs[0], Output_Pin[8].Input_Levels[0],
-									 Output_Pin[8].Enabled_Inputs[1], Output_Pin[8].Input_Levels[1])
-									 && (((Driver_Safety_Flag >> 8) & 0x01) == 1)))
+	if((((Driver_Safety_Flag >> i) & 0x01) == 0)
+			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[8].Enabled_Inputs[0], Output_Pin[8].Input_Levels[0])
+			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[8].Enabled_Inputs[1], Output_Pin[8].Input_Levels[1])))
 		level_buffer |= 1 << 2;
 	else
 		level_buffer &= ~(1 << 2);
 
-	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[9].Enabled_Inputs[0], Output_Pin[9].Input_Levels[0],
-			 	 	 	 	 	 	 Output_Pin[9].Enabled_Inputs[1], Output_Pin[9].Input_Levels[1])
-									 && (((Driver_Safety_Flag >> 9) & 0x01) == 1)))
+	if((((Driver_Safety_Flag >> i) & 0x01) == 0)
+			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[9].Enabled_Inputs[0], Output_Pin[9].Input_Levels[0])
+			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[9].Enabled_Inputs[1], Output_Pin[9].Input_Levels[1])))
 		level_buffer |= 1 << 3;
 	else
 		level_buffer &= ~(1 << 3);
 
-	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[10].Enabled_Inputs[0], Output_Pin[10].Input_Levels[0],
-			 	 	 	 	 	 	 Output_Pin[10].Enabled_Inputs[1], Output_Pin[10].Input_Levels[1])
-									 && (((Driver_Safety_Flag >> 10) & 0x01) == 1)))
+	if((((Driver_Safety_Flag >> i) & 0x01) == 0)
+			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[10].Enabled_Inputs[0], Output_Pin[10].Input_Levels[0])
+			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[10].Enabled_Inputs[1], Output_Pin[10].Input_Levels[1])))
 		level_buffer |= 1;
 	else
 		level_buffer &= ~1;
 
-	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[11].Enabled_Inputs[0], Output_Pin[11].Input_Levels[0],
-									 Output_Pin[11].Enabled_Inputs[1], Output_Pin[11].Input_Levels[1])
-									 && (((Driver_Safety_Flag >> 11) & 0x01) == 1)))
+	if((((Driver_Safety_Flag >> i) & 0x01) == 0)
+			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[11].Enabled_Inputs[0], Output_Pin[11].Input_Levels[0])
+			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[11].Enabled_Inputs[1], Output_Pin[11].Input_Levels[1])))
 		level_buffer |= 1 << 1;
 	else
 		level_buffer &= ~(1 << 1);
 
-	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[12].Enabled_Inputs[0], Output_Pin[12].Input_Levels[0],
-	 	 	 	 	 	 	 	 	 Output_Pin[12].Enabled_Inputs[1], Output_Pin[12].Input_Levels[1])
-									 && (((Driver_Safety_Flag >> 12) & 0x01) == 1)))
+	if((((Driver_Safety_Flag >> i) & 0x01) == 0)
+			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[12].Enabled_Inputs[0], Output_Pin[12].Input_Levels[0])
+			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[12].Enabled_Inputs[1], Output_Pin[12].Input_Levels[1])))
 		level_buffer |= 1 << 6;
 	else
 		level_buffer &= ~(1 << 6);
 
-	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[13].Enabled_Inputs[0], Output_Pin[13].Input_Levels[0],
-	 	 	 	 	 	 	 	 	 Output_Pin[13].Enabled_Inputs[1], Output_Pin[13].Input_Levels[1])
-									 && (((Driver_Safety_Flag >> 13) & 0x01) == 1)))
+	if((((Driver_Safety_Flag >> i) & 0x01) == 0)
+			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[13].Enabled_Inputs[0], Output_Pin[13].Input_Levels[0])
+			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[13].Enabled_Inputs[1], Output_Pin[13].Input_Levels[1])))
 		level_buffer |= 1 << 7;
 	else
 		level_buffer &= ~(1 << 7);
 
-	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[14].Enabled_Inputs[0], Output_Pin[14].Input_Levels[0],
-	 	 	 	 	 	 	 	 	 Output_Pin[14].Enabled_Inputs[1], Output_Pin[14].Input_Levels[1])
-									 && (((Driver_Safety_Flag >> 14) & 0x01) == 1)))
+	if((((Driver_Safety_Flag >> i) & 0x01) == 0)
+			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[14].Enabled_Inputs[0], Output_Pin[14].Input_Levels[0])
+			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[14].Enabled_Inputs[1], Output_Pin[14].Input_Levels[1])))
 		level_buffer |= 1 << 4;
 	else
 		level_buffer &= ~(1 << 4);
 
-	if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[15].Enabled_Inputs[0], Output_Pin[15].Input_Levels[0],
-									 Output_Pin[15].Enabled_Inputs[1], Output_Pin[15].Input_Levels[1])
-									 && (((Driver_Safety_Flag >> 15) & 0x01) == 1)))
+	if((((Driver_Safety_Flag >> i) & 0x01) == 0)
+			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[15].Enabled_Inputs[0], Output_Pin[15].Input_Levels[0])
+			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[15].Enabled_Inputs[1], Output_Pin[15].Input_Levels[1])))
 		level_buffer |= 1 << 5;
 	else
 		level_buffer &= ~(1 << 5);
@@ -191,9 +191,9 @@ void PDM_Output_Process()
 #endif
 	{
 		//Check if virtual fuse isn't tripped and if the input pins match their enabled states
-		if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[i].Enabled_Inputs[0], Output_Pin[i].Input_Levels[0],
-										 Output_Pin[i].Enabled_Inputs[1], Output_Pin[i].Input_Levels[1]))
-										 && (((Driver_Safety_Flag >> i) & 0x01) == 0))
+		if((((Driver_Safety_Flag >> i) & 0x01) == 0)
+				&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[i].Enabled_Inputs[0], Output_Pin[i].Input_Levels[0])
+				||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[i].Enabled_Inputs[1], Output_Pin[i].Input_Levels[1])))
 		{
 			PDM_Output_Set(i, GPIO_PIN_SET);
 		}else{

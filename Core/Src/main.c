@@ -854,8 +854,8 @@ static void MX_DMA_Init(void)
 {
 
   /* DMA controller clock enable */
-  __HAL_RCC_DMA2_CLK_ENABLE();
   __HAL_RCC_DMA1_CLK_ENABLE();
+  __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Stream6_IRQn interrupt configuration */
@@ -909,7 +909,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : INPUT1_Pin INPUT2_Pin INPUT3_Pin INPUT4_Pin */
   GPIO_InitStruct.Pin = INPUT1_Pin|INPUT2_Pin|INPUT3_Pin|INPUT4_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
@@ -917,7 +917,7 @@ static void MX_GPIO_Init(void)
                            INPUT5_Pin INPUT6_Pin */
   GPIO_InitStruct.Pin = INPUT13_Pin|INPUT14_Pin|INPUT15_Pin|INPUT16_Pin
                           |INPUT5_Pin|INPUT6_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
@@ -943,7 +943,7 @@ static void MX_GPIO_Init(void)
                            INPUT11_Pin INPUT12_Pin */
   GPIO_InitStruct.Pin = INPUT7_Pin|INPUT8_Pin|INPUT9_Pin|INPUT10_Pin
                           |INPUT11_Pin|INPUT12_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
@@ -972,7 +972,40 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void PDM_Hard_Code_Config()
+{
+	PWM_Pin_Status = 0x11;
 
+	Output_Pin[0].Enabled_Inputs[0] = 0x0003;
+	Output_Pin[0].Input_Levels[0] = 0x0001;
+	PWM_Pins[0].PWM_Frequency = PWM_FREQ_1000HZ;
+	PWM_Pins[0].Input_DC_Preset_Enable[0] = 0x0004;
+	PWM_Pins[0].Input_DC_Preset[0] = 0x0004;
+	PWM_Pins[0].Duty_Cycle_Preset[0] = 500;
+
+	PWM_Pins[0].Command_Var_Lim[0][0] = 0;
+	PWM_Pins[0].Command_Var_Lim[0][1] = 1000;
+	PWM_Pins[0].Command_Var_Lim[1][0] = 700;
+	PWM_Pins[0].Command_Var_Lim[1][1] = 900;
+	PWM_Pins[0].Map_Lengths[0] = 3;
+	PWM_Pins[0].Map_Lengths[1] = 3;
+	PWM_Pins[0].Duty_Cycle_Map[0][0] = 0;
+	PWM_Pins[0].Duty_Cycle_Map[0][1] = 200;
+	PWM_Pins[0].Duty_Cycle_Map[0][2] = 500;
+	PWM_Pins[0].Duty_Cycle_Map[0][3] = 1000;
+	PWM_Pins[0].Duty_Cycle_Map[1][0] = 0;
+	PWM_Pins[0].Duty_Cycle_Map[1][1] = 333;
+	PWM_Pins[0].Duty_Cycle_Map[1][2] = 667;
+	PWM_Pins[0].Duty_Cycle_Map[1][3] = 1000;
+	PWM_Pins[0].Duty_Cycle_Map[2][0] = 0;
+	PWM_Pins[0].Duty_Cycle_Map[2][1] = 500;
+	PWM_Pins[0].Duty_Cycle_Map[2][2] = 750;
+	PWM_Pins[0].Duty_Cycle_Map[2][3] = 1000;
+	PWM_Pins[0].Duty_Cycle_Map[3][0] = 0;
+	PWM_Pins[0].Duty_Cycle_Map[3][1] = 600;
+	PWM_Pins[0].Duty_Cycle_Map[3][2] = 900;
+	PWM_Pins[0].Duty_Cycle_Map[3][3] = 1000;
+}
 /* USER CODE END 4 */
 
 /**

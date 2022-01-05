@@ -90,14 +90,6 @@ void Error_Handler(void);
 #define ANALOG4_GPIO_Port GPIOA
 #define ANALOG5_Pin GPIO_PIN_4
 #define ANALOG5_GPIO_Port GPIOA
-#define ANALOG6_Pin GPIO_PIN_5
-#define ANALOG6_GPIO_Port GPIOA
-#define ANALOG7_Pin GPIO_PIN_6
-#define ANALOG7_GPIO_Port GPIOA
-#define ANALOG8_Pin GPIO_PIN_7
-#define ANALOG8_GPIO_Port GPIOA
-#define ANALOG9_Pin GPIO_PIN_4
-#define ANALOG9_GPIO_Port GPIOC
 #define OUTPUT2_Pin GPIO_PIN_0
 #define OUTPUT2_GPIO_Port GPIOB
 #define OUTPUT1_Pin GPIO_PIN_1

@@ -84,9 +84,8 @@
 		for(uint16_t i = 0; i < NBR_OF_DATA_CHANNELS; i++)	\
 			Data_ID_Buffer[i] = i << 1;
 
-#define __PDM_INPUT_CONDITION_COMPARE(__ENABLED_INPUTS0__, __INPUT_LEVELS0__, __ENABLED_INPUTS1__, __INPUT_LEVELS1__)	\
-		((((Input_Pin_Levels & (__ENABLED_INPUTS0__)) == (__INPUT_LEVELS0__)) && ((__ENABLED_INPUTS0__) != 0x0000))		\
-		|| (((Input_Pin_Levels & (__ENABLED_INPUTS1__)) == (__INPUT_LEVELS1__)) && ((__ENABLED_INPUTS1__) != 0x0000)))
+#define __PDM_INPUT_CONDITION_COMPARE(__ENABLED_INPUTS__, __INPUT_LEVELS__)	\
+		(((Input_Pin_Levels & (__ENABLED_INPUTS__)) == (__INPUT_LEVELS__)))// && ((__ENABLED_INPUTS__) != 0))
 
 #ifdef LQFP64
 #define __PDM_PWM_SELECT_TIM(__PWM_OUT_NUMBER__)	\
@@ -229,12 +228,12 @@ typedef struct{
 }Output_Control_Struct;
 
 typedef struct{
-	uint8_t PWM_Frequency;
 	uint16_t Duty_Cycle;
+	uint16_t PWM_Frequency;
 
 	//Used to set specific duty cycles
-	uint16_t Input_DC_Preset_Enable[4];
-	uint16_t Input_DC_Preset[4];
+	uint16_t Input_DC_Preset_Enable[2];
+	uint16_t Input_DC_Preset[2];
 	uint16_t Duty_Cycle_Preset[2];
 
 	//Used for PWM CAN
