@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2022 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -90,6 +89,14 @@ void Error_Handler(void);
 #define ANALOG4_GPIO_Port GPIOA
 #define ANALOG5_Pin GPIO_PIN_4
 #define ANALOG5_GPIO_Port GPIOA
+#define ANALOG6_Pin GPIO_PIN_5
+#define ANALOG6_GPIO_Port GPIOA
+#define ANALOG7_Pin GPIO_PIN_6
+#define ANALOG7_GPIO_Port GPIOA
+#define ANALOG8_Pin GPIO_PIN_7
+#define ANALOG8_GPIO_Port GPIOA
+#define ANALOG9_Pin GPIO_PIN_4
+#define ANALOG9_GPIO_Port GPIOC
 #define OUTPUT2_Pin GPIO_PIN_0
 #define OUTPUT2_GPIO_Port GPIOB
 #define OUTPUT1_Pin GPIO_PIN_1

@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2022 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -79,8 +78,8 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
   /** Initializes the peripherals clock
   */
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_CLK48;
-    PeriphClkInitStruct.PLLSAI.PLLSAIM = 4;
-    PeriphClkInitStruct.PLLSAI.PLLSAIN = 96;
+    PeriphClkInitStruct.PLLSAI.PLLSAIM = 8;
+    PeriphClkInitStruct.PLLSAI.PLLSAIN = 192;
     PeriphClkInitStruct.PLLSAI.PLLSAIQ = 2;
     PeriphClkInitStruct.PLLSAI.PLLSAIP = RCC_PLLSAIP_DIV4;
     PeriphClkInitStruct.PLLSAIDivQ = 1;
@@ -621,42 +620,6 @@ USBD_StatusTypeDef USBD_LL_PrepareReceive(USBD_HandleTypeDef *pdev, uint8_t ep_a
 uint32_t USBD_LL_GetRxDataSize(USBD_HandleTypeDef *pdev, uint8_t ep_addr)
 {
   return HAL_PCD_EP_GetRxCount((PCD_HandleTypeDef*) pdev->pData, ep_addr);
-}
-
-/**
-  * @brief  Send LPM message to user layer
-  * @param  hpcd: PCD handle
-  * @param  msg: LPM message
-  * @retval None
-  */
-void HAL_PCDEx_LPM_Callback(PCD_HandleTypeDef *hpcd, PCD_LPM_MsgTypeDef msg)
-{
-  switch (msg)
-  {
-  case PCD_LPM_L0_ACTIVE:
-    if (hpcd->Init.low_power_enable)
-    {
-      SystemClock_Config();
-
-      /* Reset SLEEPDEEP bit of Cortex System Control Register. */
-      SCB->SCR &= (uint32_t)~((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
-    }
-    __HAL_PCD_UNGATE_PHYCLOCK(hpcd);
-    USBD_LL_Resume(hpcd->pData);
-    break;
-
-  case PCD_LPM_L1_ACTIVE:
-    __HAL_PCD_GATE_PHYCLOCK(hpcd);
-    USBD_LL_Suspend(hpcd->pData);
-
-    /* Enter in STOP mode. */
-    if (hpcd->Init.low_power_enable)
-    {
-      /* Set SLEEPDEEP bit and SleepOnExit of Cortex System Control Register. */
-      SCB->SCR |= (uint32_t)((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
-    }
-    break;
-  }
 }
 
 /**

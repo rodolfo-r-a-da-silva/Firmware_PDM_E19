@@ -19,28 +19,23 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	return;
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	PDM_Input_Process();
+//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+//{
+//	PDM_Input_Process();
+//
+//	PDM_Output_Process();
+//
+//	return;
+//}
 
-	PDM_Output_Process();
-
-	return;
-}
-
-void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-	return;
-}
+//void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+//{
+//	return;
+//}
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
 {
 	if(htim->Instance == TIM7)
-	{
-		Accumulator_Delay += 10;
-	}
-
-	if(htim->Instance == TIM6)
 	{
 		Accumulator_Msg_10Hz++;
 		Accumulator_Msg_25Hz++;
@@ -48,12 +43,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
 		Accumulator_Msg_80Hz++,
 		Accumulator_Msg_100Hz++;
 
+		Accumulator_Delay++;
 		Accumulator_Output_Check++;
 		Accumulator_Temp_Read++;
 		Accumulator_Volt_Read++;
 
-		if(USB_Connected_Flag == 1)
-			Accumulator_USB_Data++;
+		Accumulator_USB_Data++;
 	}
 
 	return;

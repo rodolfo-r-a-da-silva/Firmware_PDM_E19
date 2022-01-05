@@ -48,7 +48,7 @@ USB_DEVICE/App/usb_device.o: ../USB_DEVICE/App/usb_device.c \
  ../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h \
  ../USB_DEVICE/App/usbd_cdc_if.h ../Core/Inc/pdm.h ../Core/Inc/main.h \
- ../Core/Inc/PCF8574.h ../Core/Inc/AT24Cxx.h
+ ../Core/Inc/AT24Cxx.h
 
 ../USB_DEVICE/App/usb_device.h:
 
@@ -153,7 +153,5 @@ USB_DEVICE/App/usb_device.o: ../USB_DEVICE/App/usb_device.c \
 ../Core/Inc/pdm.h:
 
 ../Core/Inc/main.h:
-
-../Core/Inc/PCF8574.h:
 
 ../Core/Inc/AT24Cxx.h:

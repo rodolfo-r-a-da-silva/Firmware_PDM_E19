@@ -6,6 +6,7 @@
  */
 
 #include "pdm.h"
+#include "stdlib.h"
 #include "usbd_cdc_if.h"
 
 //Use to load pin, current limit and basic pwm control into a buffer
@@ -298,10 +299,10 @@ void PDM_Init(CAN_HandleTypeDef *hcan, I2C_HandleTypeDef *hi2c)
 	uint8_t *data_buffer = malloc(EEPROM_BUFFER_SIZE * sizeof(uint8_t));
 
 	//Reads general configuration from EEPROM
-	AT24Cxx_Read(hi2c, 0x0000, data_buffer, EEPROM_BUFFER_SIZE);
+//	AT24Cxx_Read(hi2c, 0x0000, data_buffer, EEPROM_BUFFER_SIZE);
 
 	//Loads configuration into global variables
-	PDM_Load_Config_Buffer(data_buffer, EEPROM_BUFFER_SIZE);
+//	PDM_Load_Config_Buffer(data_buffer, EEPROM_BUFFER_SIZE);
 
 	//Reads PWM 3D maps from EEPROM
 //	AT24Cxx_Read(hi2c, EEPROM_BUFFER_SIZE, &data_buffer[EEPROM_BUFFER_SIZE], EEPROM_MAP_BUFFER_SIZE);
@@ -332,9 +333,8 @@ void PDM_Init(CAN_HandleTypeDef *hcan, I2C_HandleTypeDef *hi2c)
 	PDM_Output_Process();
 
 	//Initializates timers and ADC conversion
-	HAL_ADC_Start_DMA(&hadc1, &ADC_BUFFER[5], 5);
-	HAL_ADC_Start_DMA(&hadc2, &ADC_BUFFER[0], 5);
-	HAL_TIM_Base_Start_IT(&htim6);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) &ADC_BUFFER[5], 5);
+	HAL_ADC_Start_DMA(&hadc2, (uint32_t*) &ADC_BUFFER[0], 5);
 	HAL_TIM_Base_Start_IT(&htim7);
 
 	return;
@@ -388,7 +388,6 @@ void PDM_USB_Transmit_Data()
 
 	return;
 }
-
 
 //Use for configuration without or with partial EEPROM data
 __weak void PDM_Hard_Code_Config(){}

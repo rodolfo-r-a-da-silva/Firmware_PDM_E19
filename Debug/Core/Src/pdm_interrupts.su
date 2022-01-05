@@ -1,4 +1,2 @@
 pdm_interrupts.c:10:6:HAL_CAN_RxFifo0MsgPendingCallback	16	static
-pdm_interrupts.c:22:6:HAL_GPIO_EXTI_Callback	16	static
-pdm_interrupts.c:31:6:HAL_I2C_MemTxCpltCallback	16	static
 pdm_interrupts.c:36:6:HAL_TIM_PeriodElapsedCallback	16	static

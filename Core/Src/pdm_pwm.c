@@ -7,21 +7,6 @@
 
 #include "pdm.h"
 
-//static int16_t Linear_Interpolation(int16_t x, int16_t x0, int16_t x1, int16_t y0, int16_t y1)
-//{
-//	return (((y1 - y0) * (x - x0)) / (x1 - x0)) + y0;
-//}
-
-//static int16_t Bilinear_Interpolation(int16_t x, int16_t y, int16_t x0, int16_t x1, int16_t y0, int16_t y1, int16_t z00, int16_t z01, int16_t z10, int16_t z11)
-//{
-//	int16_t z[2];
-//
-//	z[0] = __PDM_LINEAR_INTERPOLATION(x, x0, x1, z00, z01);
-//	z[1] = __PDM_LINEAR_INTERPOLATION(x, x0, x1, z10, z11);
-//
-//	return __PDM_LINEAR_INTERPOLATION(y, y0, y1, z[0], z[1]);
-//}
-
 //Sets PWM output duty cycle using its command variables
 static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 {
@@ -161,7 +146,8 @@ void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8
 		__HAL_TIM_SET_AUTORELOAD(htim, pwm_struct->PWM_Frequency);
 
 		//Sets CAN filter and duty cycle map steps if PWM CAN is enabled and map lengths are bigger than zero
-		if((((PWM_Pin_Status >> pwm_out_number) & 0x10) == OUTPUT_PWM_CAN_ENABLE) && (pwm_struct->Map_Lengths[0] != 0) && (pwm_struct->Map_Lengths[1] != 0))
+		if((((PWM_Pin_Status >> pwm_out_number) & 0x10) == OUTPUT_PWM_CAN_ENABLE)
+				&& (pwm_struct->Map_Lengths[0] != 0) && (pwm_struct->Map_Lengths[1] != 0))
 		{
 			PDM_PWM_CAN_Filter_Config(hcan, pwm_struct, pwm_out_number);
 
@@ -173,8 +159,10 @@ void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8
 		}
 	}
 
-	//Start the PWM timer
-	HAL_TIM_PWM_Start(htim, tim_channel);
+	//Start the PWM timer if output is enabled
+	if((Output_Pin[pwm_out_number].Enabled_Inputs[0] != 0)
+			&& (Output_Pin[pwm_out_number].Enabled_Inputs[1] != 0))
+		HAL_TIM_PWM_Start(htim, tim_channel);
 
 	return;
 }

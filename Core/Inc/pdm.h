@@ -10,7 +10,7 @@
 
 #include "main.h"
 
-#include "PCF8574.h"
+//#include "PCF8574.h"
 #include "AT24Cxx.h"
 
 /*BEGIN DEFINES*/
@@ -65,9 +65,9 @@
 #define ADC_THRESHOLD_LOW			10
 #define ADC_THRESHOLD_HIGH			4000
 
-//us
+//us *100
 #define READING_ADC_DELAY			140
-#define READING_DELAY				60 + READING_ADC_DELAY
+#define READING_DELAY				3//60 + READING_ADC_DELAY
 //ms
 #define READING_DELAY_TEMP			10
 #define READING_DELAY_VOLT			10
@@ -85,7 +85,7 @@
 			Data_ID_Buffer[i] = i << 1;
 
 #define __PDM_INPUT_CONDITION_COMPARE(__ENABLED_INPUTS__, __INPUT_LEVELS__)	\
-		(((Input_Pin_Levels & (__ENABLED_INPUTS__)) == (__INPUT_LEVELS__)))// && ((__ENABLED_INPUTS__) != 0))
+		(((Input_Pin_Levels & (__ENABLED_INPUTS__)) == (__INPUT_LEVELS__)))
 
 #ifdef LQFP64
 #define __PDM_PWM_SELECT_TIM(__PWM_OUT_NUMBER__)	\
@@ -263,10 +263,8 @@ extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim8;
 #endif
 
-
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
-extern TIM_HandleTypeDef htim6;
 extern TIM_HandleTypeDef htim7;
 /*END EXTERNAL VARIABLES*/
 
@@ -297,7 +295,7 @@ uint8_t
 uint16_t
 	Data_Buffer[30],
 	Data_ID_Buffer[30];
-uint32_t ADC_BUFFER[10];
+uint16_t ADC_BUFFER[10];
 
 //OUTPUTS
 uint8_t PWM_Pin_Status;

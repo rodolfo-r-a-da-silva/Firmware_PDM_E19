@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2022 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -51,12 +50,10 @@ CAN_HandleTypeDef hcan1;
 CRC_HandleTypeDef hcrc;
 
 I2C_HandleTypeDef hi2c1;
-DMA_HandleTypeDef hdma_i2c1_tx;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
-TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
 TIM_HandleTypeDef htim8;
 
@@ -67,17 +64,16 @@ TIM_HandleTypeDef htim8;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_ADC2_Init(void);
-static void MX_DMA_Init(void);
+static void MX_TIM7_Init(void);
 static void MX_CAN1_Init(void);
-static void MX_I2C1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
-static void MX_TIM6_Init(void);
-static void MX_TIM7_Init(void);
 static void MX_TIM8_Init(void);
+static void MX_I2C1_Init(void);
 static void MX_CRC_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -116,18 +112,17 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC1_Init();
   MX_ADC2_Init();
-  MX_DMA_Init();
-  MX_USB_DEVICE_Init();
+  MX_TIM7_Init();
   MX_CAN1_Init();
-  MX_I2C1_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
-  MX_TIM6_Init();
-  MX_TIM7_Init();
   MX_TIM8_Init();
+  MX_I2C1_Init();
+  MX_USB_DEVICE_Init();
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   PDM_Init(&hcan1, &hi2c1);
@@ -185,12 +180,12 @@ int main(void)
 	  }
 
 	  //Checks if USB accumulator is above time threshold
-	  if((Accumulator_USB_Data >= DATA_FREQ_USB))
+	  if((Accumulator_USB_Data >= DATA_FREQ_USB) && (USB_Connected_Flag == 1))
 	  {
 		  Accumulator_USB_Data = 0;
 
 		  //If connected, send data channels via USB
-		  if((HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_SET) && (USB_Connected_Flag == 1))
+		  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_SET)
 			  PDM_USB_Transmit_Data();
 		  //If disconnected reset flag
 		  else
@@ -226,7 +221,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLM = 4;
   RCC_OscInitStruct.PLL.PLLN = 180;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 3;
+  RCC_OscInitStruct.PLL.PLLQ = 8;
   RCC_OscInitStruct.PLL.PLLR = 2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -600,7 +595,6 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 0 */
 
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -613,15 +607,6 @@ static void MX_TIM2_Init(void)
   htim2.Init.Period = 999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
   if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -659,7 +644,6 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 0 */
 
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -672,15 +656,6 @@ static void MX_TIM3_Init(void)
   htim3.Init.Period = 999;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
@@ -707,44 +682,6 @@ static void MX_TIM3_Init(void)
 }
 
 /**
-  * @brief TIM6 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM6_Init(void)
-{
-
-  /* USER CODE BEGIN TIM6_Init 0 */
-
-  /* USER CODE END TIM6_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM6_Init 1 */
-
-  /* USER CODE END TIM6_Init 1 */
-  htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 89;
-  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 999;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM6_Init 2 */
-
-  /* USER CODE END TIM6_Init 2 */
-
-}
-
-/**
   * @brief TIM7 Initialization Function
   * @param None
   * @retval None
@@ -762,7 +699,7 @@ static void MX_TIM7_Init(void)
 
   /* USER CODE END TIM7_Init 1 */
   htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 8;
+  htim7.Init.Prescaler = 89;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim7.Init.Period = 99;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -854,13 +791,9 @@ static void MX_DMA_Init(void)
 {
 
   /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Stream6_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
@@ -902,7 +835,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : SEL1_Pin SEL0_Pin FAULTRST_Pin SEN_Pin */
   GPIO_InitStruct.Pin = SEL1_Pin|SEL0_Pin|FAULTRST_Pin|SEN_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -925,7 +858,7 @@ static void MX_GPIO_Init(void)
                            OUTPUT10_Pin OUTPUT9_Pin OUTPUT12_Pin OUTPUT11_Pin */
   GPIO_InitStruct.Pin = OUTPUT6_Pin|OUTPUT5_Pin|OUTPUT8_Pin|OUTPUT7_Pin
                           |OUTPUT10_Pin|OUTPUT9_Pin|OUTPUT12_Pin|OUTPUT11_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
@@ -934,7 +867,7 @@ static void MX_GPIO_Init(void)
                            CAN_RX_LED_Pin CAN_TX_LED_Pin */
   GPIO_InitStruct.Pin = OUTPUT14_Pin|OUTPUT13_Pin|OUTPUT16_Pin|OUTPUT15_Pin
                           |CAN_RX_LED_Pin|CAN_TX_LED_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
@@ -972,40 +905,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void PDM_Hard_Code_Config()
-{
-	PWM_Pin_Status = 0x11;
 
-	Output_Pin[0].Enabled_Inputs[0] = 0x0003;
-	Output_Pin[0].Input_Levels[0] = 0x0001;
-	PWM_Pins[0].PWM_Frequency = PWM_FREQ_1000HZ;
-	PWM_Pins[0].Input_DC_Preset_Enable[0] = 0x0004;
-	PWM_Pins[0].Input_DC_Preset[0] = 0x0004;
-	PWM_Pins[0].Duty_Cycle_Preset[0] = 500;
-
-	PWM_Pins[0].Command_Var_Lim[0][0] = 0;
-	PWM_Pins[0].Command_Var_Lim[0][1] = 1000;
-	PWM_Pins[0].Command_Var_Lim[1][0] = 700;
-	PWM_Pins[0].Command_Var_Lim[1][1] = 900;
-	PWM_Pins[0].Map_Lengths[0] = 3;
-	PWM_Pins[0].Map_Lengths[1] = 3;
-	PWM_Pins[0].Duty_Cycle_Map[0][0] = 0;
-	PWM_Pins[0].Duty_Cycle_Map[0][1] = 200;
-	PWM_Pins[0].Duty_Cycle_Map[0][2] = 500;
-	PWM_Pins[0].Duty_Cycle_Map[0][3] = 1000;
-	PWM_Pins[0].Duty_Cycle_Map[1][0] = 0;
-	PWM_Pins[0].Duty_Cycle_Map[1][1] = 333;
-	PWM_Pins[0].Duty_Cycle_Map[1][2] = 667;
-	PWM_Pins[0].Duty_Cycle_Map[1][3] = 1000;
-	PWM_Pins[0].Duty_Cycle_Map[2][0] = 0;
-	PWM_Pins[0].Duty_Cycle_Map[2][1] = 500;
-	PWM_Pins[0].Duty_Cycle_Map[2][2] = 750;
-	PWM_Pins[0].Duty_Cycle_Map[2][3] = 1000;
-	PWM_Pins[0].Duty_Cycle_Map[3][0] = 0;
-	PWM_Pins[0].Duty_Cycle_Map[3][1] = 600;
-	PWM_Pins[0].Duty_Cycle_Map[3][2] = 900;
-	PWM_Pins[0].Duty_Cycle_Map[3][3] = 1000;
-}
 /* USER CODE END 4 */
 
 /**
