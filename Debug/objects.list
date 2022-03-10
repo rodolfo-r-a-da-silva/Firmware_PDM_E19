@@ -7,6 +7,7 @@
 "./Core/Src/pdm_interrupts.o"
 "./Core/Src/pdm_pwm.o"
 "./Core/Src/pdm_readings.o"
+"./Core/Src/pdm_variables.o"
 "./Core/Src/stm32f4xx_hal_msp.o"
 "./Core/Src/stm32f4xx_it.o"
 "./Core/Src/syscalls.o"

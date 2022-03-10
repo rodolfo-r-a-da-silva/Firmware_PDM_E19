@@ -250,63 +250,59 @@ typedef struct{
 }PWM_Control_Struct;
 /*END STRUCT TYPEDEFS*/
 
-/*BEGIN EXTERNAL VARIABLES*/
+/*BEGIN DECLARED VARIABLES*/
+//AUTO GENERATED VARIABLES
 extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
-
 extern CRC_HandleTypeDef hcrc;
-
 extern I2C_HandleTypeDef hi2c1;
+extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim7;
 
 #ifndef LQFP64
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim8;
 #endif
 
-extern TIM_HandleTypeDef htim2;
-extern TIM_HandleTypeDef htim3;
-extern TIM_HandleTypeDef htim7;
-/*END EXTERNAL VARIABLES*/
-
-/*BEGIN DECLARED VARIABLES*/
 //CAN
-uint8_t
+extern uint8_t
 	CAN_Baud_Rate,
 	CAN_Rx_Data[8],
 	CAN_Tx_Data[8];
-uint32_t pTxMailbox;
-CAN_RxHeaderTypeDef CAN_Rx_Message;
-CAN_TxHeaderTypeDef CAN_Tx_Message;
+extern uint32_t pTxMailbox;
+extern CAN_RxHeaderTypeDef CAN_Rx_Message;
+extern CAN_TxHeaderTypeDef CAN_Tx_Message;
 
 //CONFIGURATION
-uint8_t
+extern uint8_t
 	USB_Connected_Flag,
 	USB_VCP_Parameters[7];
 
 //CURRENT MONITORING
-uint16_t
+extern uint16_t
 	Driver_Overcurrent_Flag,
 	Driver_Safety_Flag;
 
 //DATA
-uint8_t
+extern uint8_t
 	Data_Conversion,
 	Data_Freq_Buffer[30];
-uint16_t
+extern uint16_t
 	Data_Buffer[30],
 	Data_ID_Buffer[30];
-uint16_t ADC_BUFFER[10];
+extern uint16_t ADC_BUFFER[10];
 
 //OUTPUTS
-uint8_t PWM_Pin_Status;
-uint16_t Input_Pin_Levels;
-Output_Control_Struct Output_Pin[16];
-PWM_Control_Struct PWM_Pins[4];
+extern uint8_t PWM_Pin_Status;
+extern uint16_t Input_Pin_Levels;
+extern Output_Control_Struct Output_Pin[16];
+extern PWM_Control_Struct PWM_Pins[4];
 
 //TIMING
-int32_t Accumulator_Delay;
+extern int32_t Accumulator_Delay;
 
-uint32_t
+extern uint32_t
 	Accumulator_Msg_10Hz,
 	Accumulator_Msg_25Hz,
 	Accumulator_Msg_50Hz,

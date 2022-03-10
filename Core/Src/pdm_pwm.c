@@ -8,7 +8,7 @@
 #include "pdm.h"
 
 //Sets PWM output duty cycle using its command variables
-static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
+static void PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 {
 	//Checks if both command variables are above the collum and line limits and attributes the map's closest corner value
 	if((pwm_struct->Command_Var[0] <= pwm_struct->Command_Var_Lim[0][0])
@@ -127,6 +127,50 @@ static void PDM_PWM_Duty_Cycle_Set(PWM_Control_Struct* pwm_struct)
 	return;
 }
 
+//Sets PWM output duty cycle based on inputs and output mode
+static void PWM_Process_Condition(PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number)
+{
+	//Check if virtual fuse isn't tripped
+	if(((Driver_Safety_Flag >> pwm_out_number) & 0x0001) == 0)
+	{
+		//Check if output is in PWM mode
+		if(((PWM_Pin_Status >> pwm_out_number) & 0x01) == OUTPUT_PWM_ENABLE)
+		{
+			//Checks if the inputs match the first PWM preset
+			if(__PDM_INPUT_CONDITION_COMPARE(pwm_struct[pwm_out_number].Input_DC_Preset_Enable[0], pwm_struct->Input_DC_Preset[0]))
+				pwm_struct->Duty_Cycle = pwm_struct->Duty_Cycle_Preset[0];
+
+			//Checks if the inputs match the second PWM preset
+			else if(__PDM_INPUT_CONDITION_COMPARE(pwm_struct[pwm_out_number].Input_DC_Preset_Enable[1], pwm_struct->Input_DC_Preset[1]))
+				pwm_struct->Duty_Cycle = pwm_struct->Duty_Cycle_Preset[1];
+
+			//Checks if the inputs enable the PWM map selection
+			else if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[0], Output_Pin[pwm_out_number].Input_Levels[0])
+				||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[1], Output_Pin[pwm_out_number].Input_Levels[1])))
+				PWM_Duty_Cycle_Set(pwm_struct);
+
+			//Turns output off
+			else
+				pwm_struct->Duty_Cycle = 0;
+		}
+
+		//If output is in normal mode and inputs match presets, turns output on
+		else if((__PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[0], Output_Pin[pwm_out_number].Input_Levels[0])
+				||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[1], Output_Pin[pwm_out_number].Input_Levels[1])))
+			pwm_struct->Duty_Cycle = 1010;
+
+		//Turns output off
+		else
+			pwm_struct->Duty_Cycle = 0;
+	}
+
+	//Turns output off if virtual fuse is tripped
+	else
+		pwm_struct->Duty_Cycle = 0;
+
+	return;
+}
+
 //Initializes PWM output and sets its CAN bus filter
 void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number)
 {
@@ -176,32 +220,34 @@ void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_numb
 	//Select TIM_HandleTypeDef and channel based on pwm_out_number
 	__PDM_PWM_SELECT_TIM(pwm_out_number);
 
-	//Check if virtual fuse isn't tripped and if the input pins match their enabled states
-	if((((Driver_Safety_Flag >> pwm_out_number) & 0x0001) == 0)
-			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[0], Output_Pin[pwm_out_number].Input_Levels[0])
-			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[1], Output_Pin[pwm_out_number].Input_Levels[1])))
-	{
-		//Checks if the output is enabled as PWM, if i isn't, just sets it at 100%
-		if(((PWM_Pin_Status >> pwm_out_number) & 0x01) == OUTPUT_PWM_ENABLE)
-		{
-			//Checks if the inputs match the first PWM preset
-			if(__PDM_INPUT_CONDITION_COMPARE(pwm_struct[pwm_out_number].Input_DC_Preset_Enable[0], pwm_struct->Input_DC_Preset[0]))
-				pwm_struct->Duty_Cycle = pwm_struct->Duty_Cycle_Preset[0];
+//	//Check if virtual fuse isn't tripped and if the input pins match their enabled states
+//	if((((Driver_Safety_Flag >> pwm_out_number) & 0x0001) == 0)
+//			&& (__PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[0], Output_Pin[pwm_out_number].Input_Levels[0])
+//			||  __PDM_INPUT_CONDITION_COMPARE(Output_Pin[pwm_out_number].Enabled_Inputs[1], Output_Pin[pwm_out_number].Input_Levels[1])))
+//	{
+//		//Checks if the output is enabled as PWM, if i isn't, just sets it at 100%
+//		if(((PWM_Pin_Status >> pwm_out_number) & 0x01) == OUTPUT_PWM_ENABLE)
+//		{
+//			//Checks if the inputs match the first PWM preset
+//			if(__PDM_INPUT_CONDITION_COMPARE(pwm_struct[pwm_out_number].Input_DC_Preset_Enable[0], pwm_struct->Input_DC_Preset[0]))
+//				pwm_struct->Duty_Cycle = pwm_struct->Duty_Cycle_Preset[0];
+//
+//			//Checks if the inputs match the second PWM preset
+//			else if(__PDM_INPUT_CONDITION_COMPARE(pwm_struct[pwm_out_number].Input_DC_Preset_Enable[1], pwm_struct->Input_DC_Preset[1]))
+//				pwm_struct->Duty_Cycle = pwm_struct->Duty_Cycle_Preset[1];
+//
+//			//If no preset is matched, set PWM duty cycle using the 3D map
+//			else if(((PWM_Pin_Status >> pwm_out_number) & 0x10) == OUTPUT_PWM_CAN_ENABLE)
+//				PWM_Duty_Cycle_Set(pwm_struct);
+//
+//		}else{
+//			pwm_struct->Duty_Cycle = 1010;
+//		}
+//	}else
+//		pwm_struct->Duty_Cycle = 0;
 
-			//Checks if the inputs match the second PWM preset
-			else if(__PDM_INPUT_CONDITION_COMPARE(pwm_struct[pwm_out_number].Input_DC_Preset_Enable[1], pwm_struct->Input_DC_Preset[1]))
-				pwm_struct->Duty_Cycle = pwm_struct->Duty_Cycle_Preset[1];
-
-			//If no preset is matched, set PWM duty cycle using the 3D map
-			else if(((PWM_Pin_Status >> pwm_out_number) & 0x10) == OUTPUT_PWM_CAN_ENABLE)
-				PDM_PWM_Duty_Cycle_Set(pwm_struct);
-
-		}else{
-			pwm_struct->Duty_Cycle = 1010;
-		}
-	}else
-		pwm_struct->Duty_Cycle = 0;
-
+	//Checks inputs and output mode to set appropriate duty cycle
+	PWM_Process_Condition(pwm_struct, pwm_out_number);
 
 	__HAL_TIM_SET_COMPARE(htim, tim_channel, (htim->Init.Period * pwm_struct->Duty_Cycle) / 1000);
 
