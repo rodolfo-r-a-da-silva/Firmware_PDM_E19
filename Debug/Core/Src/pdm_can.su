@@ -1,4 +1,4 @@
 ../Core/Src/pdm_can.c:18:19:PDM_CAN_Init	16	static
 ../Core/Src/pdm_can.c:65:19:PDM_PWM_CAN_Filter_Config	64	static
 ../Core/Src/pdm_can.c:97:19:PDM_CAN_Transmit_Data	24	static
-../Core/Src/pdm_can.c:167:6:PDM_CAN_Process_Rx_Data	24	static
+../Core/Src/pdm_can.c:167:6:PDM_CAN_Process_Rx_Data	4	static

@@ -54,6 +54,7 @@ I2C_HandleTypeDef hi2c1;
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
 TIM_HandleTypeDef htim8;
 
@@ -75,6 +76,7 @@ static void MX_TIM3_Init(void);
 static void MX_TIM8_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_CRC_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -124,6 +126,7 @@ int main(void)
   MX_I2C1_Init();
   MX_USB_DEVICE_Init();
   MX_CRC_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   PDM_Init(&hcan1, &hi2c1);
   /* USER CODE END 2 */
@@ -133,63 +136,55 @@ int main(void)
   while (1)
   {
 	  //Convert ADC values to data channels
-	  if(Accumulator_Delay >= READING_DELAY)
-	  {
-		  PDM_Read_Data(&Data_Conversion);
-	  }
-
-	  //check if output currents are below thresholds and timeouts
-	  if(Accumulator_Output_Check >= OUTPUT_FUSE_FREQ)
-	  {
-		  PDM_Output_Fuse();
-	  }
+	  if(flagReading[1] == Data_Read_Ready)
+		  PDM_Data_Conversion(&htim6);
 
 	  //Transmit 10 Hz data channels via CAN bus if accumulator is above time threshold
-	  if(Accumulator_Msg_10Hz >= DATA_FREQ_10HZ)
+	  if(accMsg10Hz >= DATA_FREQ_10HZ)
 	  {
-		  Accumulator_Msg_10Hz = 0;
+		  accMsg10Hz = 0;
 		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_10Hz);
 	  }
 
 	  //Transmit 25 Hz data channels via CAN bus if accumulator is above time threshold
-	  if(Accumulator_Msg_25Hz >= DATA_FREQ_25HZ)
+	  if(accMsg25Hz >= DATA_FREQ_25HZ)
 	  {
-		  Accumulator_Msg_25Hz = 0;
+		  accMsg25Hz = 0;
 		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_25Hz);
 	  }
 
 	  //Transmit 50 Hz data channels via CAN bus if accumulator is above time threshold
-	  if(Accumulator_Msg_50Hz >= DATA_FREQ_50HZ)
+	  if(accMsg50Hz >= DATA_FREQ_50HZ)
 	  {
-		  Accumulator_Msg_50Hz = 0;
+		  accMsg50Hz = 0;
 		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_50Hz);
 	  }
 
 	  //Transmit 80 Hz data channels via CAN bus if accumulator is above time threshold
-	  if(Accumulator_Msg_80Hz >= DATA_FREQ_80HZ)
+	  if(accMsg80Hz >= DATA_FREQ_80HZ)
 	  {
-		  Accumulator_Msg_80Hz = 0;
+		  accMsg80Hz = 0;
 		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_80Hz);
 	  }
 
 	  //Transmit 100 Hz data channels via CAN bus if accumulator is above time threshold
-	  if(Accumulator_Msg_100Hz >= DATA_FREQ_100HZ)
+	  if(accMsg100Hz >= DATA_FREQ_100HZ)
 	  {
-		  Accumulator_Msg_100Hz = 0;
+		  accMsg100Hz = 0;
 		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_100Hz);
 	  }
 
 	  //Checks if USB accumulator is above time threshold
-	  if((Accumulator_USB_Data >= DATA_FREQ_USB) && (USB_Connected_Flag == 1))
+	  if((accUsbData >= DATA_FREQ_USB) && (usbConnectedFlag == 1))
 	  {
-		  Accumulator_USB_Data = 0;
+		  accUsbData = 0;
 
 		  //If connected, send data channels via USB
 		  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_SET)
 			  PDM_USB_Transmit_Data();
 		  //If disconnected reset flag
 		  else
-			  USB_Connected_Flag = 0;
+			  usbConnectedFlag = 0;
 	  }
     /* USER CODE END WHILE */
 
@@ -363,7 +358,7 @@ static void MX_ADC2_Init(void)
   hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc2.Init.Resolution = ADC_RESOLUTION_12B;
   hadc2.Init.ScanConvMode = ENABLE;
-  hadc2.Init.ContinuousConvMode = DISABLE;
+  hadc2.Init.ContinuousConvMode = ENABLE;
   hadc2.Init.DiscontinuousConvMode = DISABLE;
   hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
@@ -545,7 +540,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 17;
+  htim1.Init.Prescaler = 1799;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 999;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -610,6 +605,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -617,11 +613,20 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 8;
+  htim2.Init.Prescaler = 899;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -659,6 +664,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -666,11 +672,20 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 8;
+  htim3.Init.Prescaler = 899;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 999;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
@@ -693,6 +708,44 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 2 */
   HAL_TIM_MspPostInit(&htim3);
+
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 89;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 0xfffe;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
 
 }
 
@@ -746,6 +799,7 @@ static void MX_TIM8_Init(void)
 
   /* USER CODE END TIM8_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
   TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
@@ -754,12 +808,21 @@ static void MX_TIM8_Init(void)
 
   /* USER CODE END TIM8_Init 1 */
   htim8.Instance = TIM8;
-  htim8.Init.Prescaler = 17;
+  htim8.Init.Prescaler = 1799;
   htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim8.Init.Period = 999;
   htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim8.Init.RepetitionCounter = 0;
   htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim8, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim8) != HAL_OK)
   {
     Error_Handler();
@@ -770,7 +833,7 @@ static void MX_TIM8_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM2;
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
@@ -910,12 +973,6 @@ static void MX_GPIO_Init(void)
 
   HAL_NVIC_SetPriority(EXTI4_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 1, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 1, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 

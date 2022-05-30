@@ -6,335 +6,55 @@
  */
 
 #include "pdm.h"
-#include "stdlib.h"
 #include "usbd_cdc_if.h"
 
-//Use to load pin, current limit and basic pwm control into a buffer
-//uint8_t *data_buffer - buffer to receive configuration
-//uint16_t Size - size of the buffer, must match the size of the configuration (EEPROM_BUFFER_SIZE)
-static void PDM_Load_Config_Buffer(uint8_t *data_buffer, uint16_t Size)
-{
-	//Checks if data buffer has the correct size
-	if(Size != EEPROM_BUFFER_SIZE)
-		return;
-
-	uint16_t data_index = 0;
-
-	//Loads output configurations (enabled inputs, levels, fuse current thresholds and fuse timeouts)
-	for(uint16_t i= 0; i < NBR_OF_OUTPUTS; i++)
-	{
-		for(uint8_t j = 0; j < 2 ; j++)
-		{
-			Output_Pin[i].Enabled_Inputs[j]  = data_buffer[data_index++] << 8;
-			Output_Pin[i].Enabled_Inputs[j] |= data_buffer[data_index++] & 0xFF;
-
-			Output_Pin[i].Input_Levels[j]	 = data_buffer[data_index++] << 8;
-			Output_Pin[i].Input_Levels[j]	|= data_buffer[data_index++] & 0xFF;
-		}
-		Output_Pin[i].Current_Thresholds   = data_buffer[data_index++] << 8;
-		Output_Pin[i].Current_Thresholds  |= data_buffer[data_index++] & 0xFF;
-
-		Output_Pin[i].Timeout_Output_Fuse  = data_buffer[data_index++] << 8;
-		Output_Pin[i].Timeout_Output_Fuse |= data_buffer[data_index++] & 0xFF;
-	}
-
-	//Loads each data channel transmission frequency
-	for(uint16_t i = 0; i < NBR_OF_DATA_CHANNELS; i++)
-	{
-		Data_Freq_Buffer[i] = data_buffer[data_index++];
-	}
-
-	//Loads CAN bus baud rate
-	CAN_Baud_Rate = data_buffer[data_index++];
-
-	//Loads PWM outputs general configuration (PWM CAN and PWM enabled)
-	PWM_Pin_Status = data_buffer[data_index++];
-
-	//Loads PWM outputs specific configuration (frequency, duty cycle presets and enabled inputs,
-	//command variable position inside CAN packet, CAN packet ID, 3D map lengths and limits)
-	for(uint16_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
-	{
-		PWM_Pins[i].PWM_Frequency = data_buffer[data_index++];
-
-		for(uint8_t j = 0; j < 4; j++)
-		{
-			PWM_Pins[i].Input_DC_Preset_Enable[j]  = data_buffer[data_index++] << 8;
-			PWM_Pins[i].Input_DC_Preset_Enable[j] |= data_buffer[data_index++] & 0xFF;
-
-			PWM_Pins[i].Input_DC_Preset[j] 		   = data_buffer[data_index++] << 8;
-			PWM_Pins[i].Input_DC_Preset[j] 		  |= data_buffer[data_index++] & 0xFF;
-		}
-
-		for(uint8_t j = 0; j < 2; j++)
-		{
-			PWM_Pins[i].Duty_Cycle_Preset[j]	 = data_buffer[data_index++] << 8;
-			PWM_Pins[i].Duty_Cycle_Preset[j]	|= data_buffer[data_index++] & 0xFF;
-
-			PWM_Pins[i].Command_Var_Position[j]  = data_buffer[data_index++];
-
-			PWM_Pins[i].Command_Var_CAN_ID[j]	 = data_buffer[data_index++] << 24;
-			PWM_Pins[i].Command_Var_CAN_ID[j]	|= data_buffer[data_index++] << 16;
-			PWM_Pins[i].Command_Var_CAN_ID[j]	|= data_buffer[data_index++] << 8;
-			PWM_Pins[i].Command_Var_CAN_ID[j]	|= data_buffer[data_index++] & 0xFF;
-
-			PWM_Pins[i].Map_Lengths[j]			 = data_buffer[data_index++] & 0xFF;
-
-			PWM_Pins[i].Command_Var_Lim[j][0]	 = data_buffer[data_index++] << 8;
-			PWM_Pins[i].Command_Var_Lim[j][1]	|= data_buffer[data_index++] & 0xFF;
-		}
-	}
-
-	//Loads PWM 3D maps
-	for(uint16_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
-	{
-		for(uint8_t j = 0; j < PWM_TABLE_MAX_SIZE; j++)
-		{
-			for(uint8_t k = 0; k < PWM_TABLE_MAX_SIZE; k++)
-			{
-				PWM_Pins[i].Duty_Cycle_Map[j][k]  = data_buffer[data_index++] << 8;
-				PWM_Pins[i].Duty_Cycle_Map[j][k] |= data_buffer[data_index++] & 0xFF;
-			}
-		}
-	}
-
-	return;
-}
-
-//Use to load pwm 3D map into a buffer
-//uint8_t *data_buffer - buffer to receive 3D map
-//uint16_t Size - size of the buffer, must match the size of the configuration (EEPROM_MAP_BUFFER_SIZE)
-//static void PDM_Load_Map_Buffer(uint8_t *data_buffer, uint16_t Size)
-//{
-//	//Checks if data buffer has the correct size
-//	if(Size != EEPROM_BUFFER_SIZE)
-//		return;
-//
-//	uint16_t data_index = 0;
-//
-//	for(uint16_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
-//	{
-//		for(uint8_t j = 0; j < PWM_TABLE_MAX_SIZE; j++)
-//		{
-//			for(uint8_t k = 0; k < PWM_TABLE_MAX_SIZE; k++)
-//			{
-//				PWM_Pins[i].Duty_Cycle_Map[j][k]  = data_buffer[data_index++] << 8;
-//				PWM_Pins[i].Duty_Cycle_Map[j][k] |= data_buffer[data_index++] & 0xFF;
-//			}
-//		}
-//	}
-//
-//	return;
-//}
-
-//Use to write pin, current limit and basic pwm control into their respective variables
-//uint8_t *data_buffer - buffer to send config
-//uint16_t Size - size of the buffer, must match the size of the configuration (EEPROM_BUFFER_SIZE)
-static void PDM_Write_Config_Buffer(uint8_t *data_buffer, uint16_t Size)
-{
-	//Checks if data buffer has the correct size
-	if(Size != EEPROM_BUFFER_SIZE)
-		return;
-
-	uint16_t data_index = 0;
-
-	//Writes output configurations (enabled inputs, levels, fuse current thresholds and fuse timeouts)
-	for(uint16_t i= 0; i < NBR_OF_OUTPUTS; i++)
-	{
-		for(uint8_t j = 0; j < 2 ; j++)
-		{
-			data_buffer[data_index++] = Output_Pin[i].Enabled_Inputs[j] >> 8;
-			data_buffer[data_index++] = Output_Pin[i].Enabled_Inputs[j] & 0xFF;
-
-			data_buffer[data_index++] = Output_Pin[i].Input_Levels[j] >> 8;
-			data_buffer[data_index++] = Output_Pin[i].Input_Levels[j] & 0xFF;
-		}
-		data_buffer[data_index++] = Output_Pin[i].Current_Thresholds >> 8;
-		data_buffer[data_index++] = Output_Pin[i].Current_Thresholds & 0xFF;
-
-		data_buffer[data_index++] = Output_Pin[i].Timeout_Output_Fuse >> 8;
-		data_buffer[data_index++] = Output_Pin[i].Timeout_Output_Fuse & 0xFF;
-	}
-
-	//Writes each data channel transmission frequency
-	for(uint16_t i = 0; i < NBR_OF_DATA_CHANNELS; i++)
-	{
-		data_buffer[data_index++] = Data_Freq_Buffer[i];
-	}
-
-	//Writes CAN bus baud rate
-	data_buffer[data_index++] = CAN_Baud_Rate;
-
-	//Writes PWM outputs general configuration (PWM CAN and PWM enabled)
-	data_buffer[data_index++] = PWM_Pin_Status;
-
-	//Writes PWM outputs specific configuration (frequency, duty cycle presets and enabled inputs,
-	//command variable position inside CAN packet, CAN packet ID, 3D map lengths and limits)
-	for(uint16_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
-	{
-		data_buffer[data_index++] = PWM_Pins[i].PWM_Frequency;
-
-		for(uint8_t j = 0; j < 4; j++)
-		{
-			data_buffer[data_index++] = PWM_Pins[i].Input_DC_Preset_Enable[j] >> 8;
-			data_buffer[data_index++] = PWM_Pins[i].Input_DC_Preset_Enable[j] & 0xFF;
-
-			data_buffer[data_index++] = PWM_Pins[i].Input_DC_Preset[j] >> 8;
-			data_buffer[data_index++] = PWM_Pins[i].Input_DC_Preset[j] & 0xFF;
-		}
-
-		for(uint8_t j = 0; j < 2; j++)
-		{
-			data_buffer[data_index++] = PWM_Pins[i].Duty_Cycle_Preset[j] >> 8;
-			data_buffer[data_index++] = PWM_Pins[i].Duty_Cycle_Preset[j] & 0xFF;
-
-			data_buffer[data_index++] = PWM_Pins[i].Command_Var_Position[j];
-
-			data_buffer[data_index++] = PWM_Pins[i].Command_Var_CAN_ID[j] >> 24;
-			data_buffer[data_index++] = PWM_Pins[i].Command_Var_CAN_ID[j] >> 16;
-			data_buffer[data_index++] = PWM_Pins[i].Command_Var_CAN_ID[j] >> 8;
-			data_buffer[data_index++] = PWM_Pins[i].Command_Var_CAN_ID[j] & 0xFF;
-
-			data_buffer[data_index++] = PWM_Pins[i].Map_Lengths[j];
-
-			data_buffer[data_index++] = PWM_Pins[i].Command_Var_Lim[j][0] >> 8;
-			data_buffer[data_index++] = PWM_Pins[i].Command_Var_Lim[j][0] & 0xFF;
-		}
-	}
-
-	//Writes PWM 3D maps
-	for(uint16_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
-	{
-		for(uint8_t j = 0; j < PWM_TABLE_MAX_SIZE; j++)
-		{
-			for(uint8_t k = 0; k < PWM_TABLE_MAX_SIZE; k++)
-			{
-				data_buffer[data_index++] = PWM_Pins[i].Duty_Cycle_Map[j][k] >> 8;
-				data_buffer[data_index++] = PWM_Pins[i].Duty_Cycle_Map[j][k] & 0xFF;
-			}
-		}
-	}
-
-	return;
-}
-
-//Use to load pwm 3D map into their respective variables
-//uint8_t *data_buffer - buffer to send 3D map
-//uint16_t Size - size of the buffer, must match the size of the configuration (EEPROM_MAP_BUFFER_SIZE)
-//static void PDM_Write_Map_Buffer(uint8_t *data_buffer, uint16_t Size)
-//{
-//	//Checks if data buffer has the correct size
-//	if(Size != EEPROM_BUFFER_SIZE)
-//		return;
-//
-//	uint16_t data_index = 0;
-//
-//	for(uint16_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
-//	{
-//		for(uint8_t j = 0; j < PWM_TABLE_MAX_SIZE; j++)
-//		{
-//			for(uint8_t k = 0; k < PWM_TABLE_MAX_SIZE; k++)
-//			{
-//				data_buffer[data_index++] = PWM_Pins[i].Duty_Cycle_Map[j][k] >> 8;
-//				data_buffer[data_index++] = PWM_Pins[i].Duty_Cycle_Map[j][k] & 0xFF;
-//			}
-//		}
-//	}
-//
-//	return;
-//}
-
-//Sets up pins, current limits, pwm controls and pwm 3D maps with received data from USB port
-//uint8_t *Data - buffer received via USB port
-//uint16_t Size - size of the buffer must be 5 bytes bigger than the information received (1 byte of command and 4 bytes of CRC)
-static void PDM_USB_Receive_Config(uint8_t *Data, uint16_t Size)
-{
-	uint32_t crc[2];
-
-	crc[0] = HAL_CRC_Calculate(&hcrc, (uint32_t*) &Data[5], (EEPROM_BUFFER_SIZE / sizeof(uint32_t)));
-
-	crc[1]  = Data[1] << 24;
-	crc[1] |= Data[2] << 16;
-	crc[1] |= Data[3] << 8;
-	crc[1] |= Data[4];
-
-	if(crc[0] != crc[1])
-		return;
-
-	PDM_Write_Config_Buffer(&Data[5], EEPROM_BUFFER_SIZE);
-
-	AT24Cxx_Write_DMA(&hi2c1, 0x0000, &Data[5], EEPROM_BUFFER_SIZE);
-
-	return;
-}
-
-//Sends pins, current limits, pwm controls and pwm 3D maps via USB port
-static void PDM_USB_Transmit_Config()
-{
-	uint8_t *data_buffer = malloc((EEPROM_BUFFER_SIZE + 5) * sizeof(uint8_t));
-	uint32_t crc = 0;
-
-	PDM_Load_Config_Buffer(&data_buffer[5], EEPROM_BUFFER_SIZE);
-
-	crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) &data_buffer[5], (EEPROM_BUFFER_SIZE / sizeof(uint32_t)));
-
-	data_buffer[1] = crc >> 24;
-	data_buffer[2] = crc >> 16;
-	data_buffer[3] = crc >> 8;
-	data_buffer[4] = crc & 0xFF;
-
-	CDC_Transmit_FS(data_buffer, (EEPROM_BUFFER_SIZE + 5));
-
-	free(data_buffer);
-	data_buffer = NULL;
-
-	return;
-}
+static void Output_Reset_State();
+static HAL_StatusTypeDef Output_Cfg_Load_From_EEPROM(I2C_HandleTypeDef* hi2c);
+static HAL_StatusTypeDef Output_Cfg_Save_To_EEPROM(I2C_HandleTypeDef* hi2c);
+static HAL_StatusTypeDef PWM_Output_Cfg_Load_From_EEPROM(I2C_HandleTypeDef* hi2c);
+static HAL_StatusTypeDef PWM_Output_Cfg_Save_To_EEPROM(I2C_HandleTypeDef* hi2c);
 
 //Initialize PDM
 //Loads from EEPROM
 //Initializes PWM
 void PDM_Init(CAN_HandleTypeDef *hcan, I2C_HandleTypeDef *hi2c)
 {
-//	uint8_t data_buffer[EEPROM_BUFFER_SIZE + EEPROM_MAP_BUFFER_SIZE];
-	uint8_t *data_buffer = malloc(EEPROM_BUFFER_SIZE * sizeof(uint8_t));
-
-	//Reads general configuration from EEPROM
-//	AT24Cxx_Read(hi2c, 0x0000, data_buffer, EEPROM_BUFFER_SIZE);
-
-	//Loads configuration into global variables
-//	PDM_Load_Config_Buffer(data_buffer, EEPROM_BUFFER_SIZE);
-
-	//Reads PWM 3D maps from EEPROM
-//	AT24Cxx_Read(hi2c, EEPROM_BUFFER_SIZE, &data_buffer[EEPROM_BUFFER_SIZE], EEPROM_MAP_BUFFER_SIZE);
-
-	//Load maps into global PWM structs
-//	PDM_Load_Map_Buffer(&data_buffer[EEPROM_BUFFER_SIZE], EEPROM_MAP_BUFFER_SIZE);
-
-	free(data_buffer);
-	data_buffer = NULL;
+	//Sets all outputs to zero
+	Output_Reset_State();
 
 	//Weak function for data overwriting during initialization
 	PDM_Hard_Code_Config();
 
-	//Initializes CAN ID buffer
-	__PDM_ID_BUFFER_INIT();
+	//Loads both normal output and PWM output parameters
+//	Output_Cfg_Load_From_EEPROM(hi2c);
+//	PWM_Output_Cfg_Load_From_EEPROM(hi2c);
 
 	//Initializes each PWM able output
-	for(uint8_t i = 0; i < 4; i++)
-		PDM_PWM_Init(hcan, &PWM_Pins[i], i);
+	PDM_PWM_Init(hcan, &pwmOutStruct[0], 0, EEPROM_PWM1_CFG1_ADDRESS);
+	PDM_PWM_Init(hcan, &pwmOutStruct[1], 1, EEPROM_PWM2_CFG1_ADDRESS);
+	PDM_PWM_Init(hcan, &pwmOutStruct[2], 2, EEPROM_PWM3_CFG1_ADDRESS);
+	PDM_PWM_Init(hcan, &pwmOutStruct[3], 3, EEPROM_PWM4_CFG1_ADDRESS);
 
 	//Checks input pin levels
 	PDM_Input_Process();
 
 	//Initializes CAN bus
-	PDM_CAN_Init(hcan, CAN_Baud_Rate);
+	PDM_CAN_Init(hcan, canBaudRate);
+
+	//Initializes CAN ID buffer
+	__PDM_ID_BUFFER_INIT();
 
 	//Sets outputs based on input levels
 	PDM_Output_Process();
 
-	//Initializates timers and ADC conversion
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) &ADC_BUFFER[5], 5);
-	HAL_ADC_Start_DMA(&hadc2, (uint32_t*) &ADC_BUFFER[0], 5);
+	//Starts Multisense data conversion
+	flagReading[0] = Data_Read_Ready;
+	flagReading[1] = Data_Read_Ready;
+	PDM_Data_Conversion(&htim6);
+
+	//Initializes timers and ADC conversion
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) &adcBuffer[5], 5);
+	HAL_ADC_Start_DMA(&hadc2, (uint32_t*) &adcBuffer[0], 5);
 	HAL_TIM_Base_Start_IT(&htim7);
 
 	return;
@@ -342,52 +62,299 @@ void PDM_Init(CAN_HandleTypeDef *hcan, I2C_HandleTypeDef *hi2c)
 
 void PDM_USB_Process(uint8_t *Data, uint16_t Size)
 {
-	if((Data[0] == USB_COMMAND_READ_CONFIG) && (Size == 1))
-		PDM_USB_Transmit_Config();
-
-	else if((Data[0] == USB_COMMAND_WRITE_CONFIG) && (Size == (EEPROM_BUFFER_SIZE + 5)))
-		PDM_USB_Receive_Config(Data, Size);
-
-	else if((Data[0] == USB_COMMAND_CONNECT) && (Size == 1))
-		USB_Connected_Flag = 1;
-
-	else if((Data[0] == USB_COMMAND_DISCONNECT) && (Size == 1))
-		USB_Connected_Flag = 0;
+	return;
 }
 
 //Sends data channels via USB
 void PDM_USB_Transmit_Data()
 {
-	uint8_t *data_buffer = malloc((NBR_OF_DATA_CHANNELS * 2) * sizeof(uint8_t));
-	uint32_t crc = 0;
+	return;
+}
 
-	//Load data channels inside transmission buffer
-	for(uint8_t i = 0; i < NBR_OF_DATA_CHANNELS; i++)
+HAL_StatusTypeDef PDM_PWM_Map_Load_From_EEPROM(I2C_HandleTypeDef* hi2c, PWM_Control_Struct* pwm_struct, uint16_t mem_address)
+{
+	uint8_t buffer[EEPROM_PWM_CFG_MAX_SIZE];
+	uint16_t bufferAddress = 0;
+	HAL_StatusTypeDef retVal = HAL_OK;
+
+	if(pwm_struct->outputType != OutType_Map)
+		return retVal;
+
+	retVal = HAL_I2C_Mem_Read(hi2c, EEPROM_I2C_ADDRESS, mem_address, 2, buffer, sizeof(buffer), EEPROM_TIMEOUT);
+
+	if(pwm_struct->pwmMapStruct != NULL)
 	{
-		data_buffer[(i * 2) + 5]  = Data_Buffer[i] >> 8;
-		data_buffer[(i * 2) + 6] |= Data_Buffer[i] & 0xFF;
+		pwm_struct->pwmMapStruct->mapLengths[0] = buffer[0];
+		pwm_struct->pwmMapStruct->mapLengths[1] = buffer[1];
+
+		bufferAddress += 2;
+
+		if((pwm_struct->pwmMapStruct->mapLengths[0] > PWM_TABLE_MAX_SIZE)
+				|| (pwm_struct->pwmMapStruct->mapLengths[1] > PWM_TABLE_MAX_SIZE))
+			pwm_struct->outputType = OutType_Error;
+
+		if(pwm_struct->outputType == OutType_Map)
+		{
+			pwm_struct->pwmMapStruct->dutyCycleMap = malloc(pwm_struct->pwmMapStruct->mapLengths[0] * sizeof(uint16_t*));
+			pwm_struct->pwmMapStruct->commandVarStep[0] = malloc(pwm_struct->pwmMapStruct->mapLengths[0] * sizeof(int16_t));
+			pwm_struct->pwmMapStruct->commandVarStep[1] = malloc(pwm_struct->pwmMapStruct->mapLengths[1] * sizeof(int16_t));
+
+			if((pwm_struct->pwmMapStruct->dutyCycleMap == NULL)
+					|| (pwm_struct->pwmMapStruct->commandVarStep[0] == NULL)
+					|| (pwm_struct->pwmMapStruct->commandVarStep[1] == NULL))
+				pwm_struct->outputType = OutType_Error;
+
+			for(uint8_t i = 0; (i < pwm_struct->pwmMapStruct->mapLengths[0]) && (pwm_struct->outputType == OutType_Map); i++)
+			{
+				pwm_struct->pwmMapStruct->dutyCycleMap[i] = malloc(pwm_struct->pwmMapStruct->mapLengths[1] * sizeof(uint16_t));
+
+				if(pwm_struct->pwmMapStruct->dutyCycleMap[i] == NULL)
+					pwm_struct->outputType = OutType_Error;
+			}
+		}
+
+		if(pwm_struct->outputType == OutType_Map)
+		{
+			for(uint8_t i = 0; i < pwm_struct->pwmMapStruct->mapLengths[0]; i++)
+			{
+				pwm_struct->pwmMapStruct->commandVarStep[0][i]  = buffer[(i * 2) + bufferAddress] << 8;
+				pwm_struct->pwmMapStruct->commandVarStep[0][i] |= buffer[(i * 2) + 1 + bufferAddress];
+			}
+
+			bufferAddress += pwm_struct->pwmMapStruct->mapLengths[0] * 2;
+
+			for(uint8_t i = 0; i < pwm_struct->pwmMapStruct->mapLengths[1]; i++)
+			{
+				pwm_struct->pwmMapStruct->commandVarStep[1][i]  = buffer[(i * 2) + bufferAddress] << 8;
+				pwm_struct->pwmMapStruct->commandVarStep[1][i] |= buffer[(i * 2) + 1 + bufferAddress];
+			}
+
+			bufferAddress += pwm_struct->pwmMapStruct->mapLengths[1] * 2;
+
+			for(uint8_t x = 0; x < pwm_struct->pwmMapStruct->mapLengths[0]; x++)
+			{
+				for(uint8_t y = 0; y < pwm_struct->pwmMapStruct->mapLengths[1]; y++)
+				{
+					pwm_struct->pwmMapStruct->dutyCycleMap[x][y]  = buffer[(((10 * x) + y) * 2) + bufferAddress] << 8;
+					pwm_struct->pwmMapStruct->dutyCycleMap[x][y] |= buffer[(((10 * x) + y) * 2) + 1 + bufferAddress];
+				}
+			}
+		}
 	}
 
-	//Load command into transmission buffer
-	data_buffer[0] = USB_COMMAND_READ_DATA & 0xFF;
+	else
+		pwm_struct->outputType = OutType_Error;
 
-	//Calculate buffer CRC
-	crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) &data_buffer[5], (NBR_OF_DATA_CHANNELS / sizeof(uint32_t)));
+	return retVal;
+}
 
-	//Load CRC into transmission buffer
-	data_buffer[1]  = crc >> 24;
-	data_buffer[2] |= crc >> 16;
-	data_buffer[3] |= crc >> 8;
-	data_buffer[4] |= crc;
+//Use for configuration without or with partial EEPROM data
+__weak void PDM_Hard_Code_Config()
+{
+	outputStruct[0].inputEnable[0] = 0x0011;
+	outputStruct[0].inputLevels[0] = 0x0000;
+	outputStruct[0].inputEnable[1] = 0x0018;
+	outputStruct[0].inputLevels[1] = 0x0000;
+	pwmOutStruct[0].outputType = OutType_Preset;
+	pwmOutStruct[0].presetEnable[0] = 0x0001;
+	pwmOutStruct[0].presetInputs[0] = 0x0000;
+	pwmOutStruct[0].presetDutyCycle[0] = 1000;
+	pwmOutStruct[0].presetEnable[1] = 0x0001;
+	pwmOutStruct[0].presetInputs[1] = 0x0000;
+	pwmOutStruct[0].presetDutyCycle[1] = 800;
 
-	//Transmit data buffer via USB
-	CDC_Transmit_FS(data_buffer, EEPROM_BUFFER_SIZE + 5);
 
-	free(data_buffer);
-	data_buffer = NULL;
+	outputStruct[1].inputEnable[0] = 0x0016;
+	outputStruct[1].inputLevels[0] = 0x0002;
+	pwmOutStruct[1].outputType = OutType_Preset;
+	pwmOutStruct[1].presetEnable[0] = 0x0004;
+	pwmOutStruct[1].presetInputs[0] = 0x0000;
+	pwmOutStruct[1].presetDutyCycle[0] = 1000;
+
+	outputStruct[2].inputEnable[0] = 0x0016;
+	outputStruct[2].inputLevels[0] = 0x0002;
+	pwmOutStruct[2].outputType = OutType_Preset;
+	pwmOutStruct[2].presetEnable[0] = 0x0004;
+	pwmOutStruct[2].presetInputs[0] = 0x0000;
+	pwmOutStruct[2].presetDutyCycle[0] = 1000;
+
+	outputStruct[3].inputEnable[0] = 0x0016;
+	outputStruct[3].inputLevels[0] = 0x0002;
+	pwmOutStruct[3].outputType = OutType_Preset;
+	pwmOutStruct[3].presetEnable[0] = 0x0004;
+	pwmOutStruct[3].presetInputs[0] = 0x0000;
+	pwmOutStruct[3].presetDutyCycle[0] = 1000;
+
+	outputStruct[4].inputEnable[0] = 0x0010;
+	outputStruct[4].inputLevels[0] = 0x0000;
+
+	outputStruct[5].inputEnable[0] = 0x0010;
+	outputStruct[5].inputLevels[0] = 0x0000;
+
+	outputStruct[6].inputEnable[0] = 0x0010;
+	outputStruct[6].inputLevels[0] = 0x0000;
+
+	outputStruct[7].inputEnable[0] = 0x0008;
+	outputStruct[7].inputLevels[0] = 0x0000;
+
+	outputStruct[8].inputEnable[0] = 0x0010;
+	outputStruct[8].inputLevels[0] = 0x0000;
+
+	outputStruct[9].inputEnable[0] = 0x0010;
+	outputStruct[9].inputLevels[0] = 0x0000;
+
+	outputStruct[10].inputEnable[0] = 0x0010;
+	outputStruct[10].inputLevels[0] = 0x0000;
+
+	outputStruct[11].inputEnable[0] = 0x001A;
+	outputStruct[11].inputLevels[0] = 0x0000;
+
+	outputStruct[12].inputEnable[0] = 0x0008;
+	outputStruct[12].inputLevels[0] = 0x0000;
+
+	outputStruct[13].inputEnable[0] = 0x0010;
+	outputStruct[13].inputLevels[0] = 0x0000;
+
+	outputStruct[14].inputEnable[0] = 0x0010;
+	outputStruct[14].inputLevels[0] = 0x0000;
+
+	outputStruct[15].inputEnable[0] = 0x0010;
+	outputStruct[15].inputLevels[0] = 0x0000;
 
 	return;
 }
 
-//Use for configuration without or with partial EEPROM data
-__weak void PDM_Hard_Code_Config(){}
+static void Output_Reset_State()
+{
+	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
+		memset(&outputStruct[i], '\0', sizeof(Output_Control_Struct));
+
+	//Starts PWM timers
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+	HAL_TIMEx_PWMN_Start(&htim8, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
+
+	//Zeroes all the PWM outputs duty cycles
+	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, 0);
+	__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_2, 0);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
+	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
+
+	//Sets all normal outputs to zero
+	HAL_GPIO_WritePin(OUTPUT5_GPIO_Port, OUTPUT5_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT6_GPIO_Port, OUTPUT6_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT7_GPIO_Port, OUTPUT7_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT8_GPIO_Port, OUTPUT8_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT9_GPIO_Port, OUTPUT9_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT10_GPIO_Port, OUTPUT10_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT11_GPIO_Port, OUTPUT11_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT12_GPIO_Port, OUTPUT12_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT13_GPIO_Port, OUTPUT13_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT14_GPIO_Port, OUTPUT14_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT15_GPIO_Port, OUTPUT15_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(OUTPUT16_GPIO_Port, OUTPUT16_Pin, GPIO_PIN_RESET);
+
+	return;
+}
+
+static HAL_StatusTypeDef Output_Cfg_Load_From_EEPROM(I2C_HandleTypeDef* hi2c)
+{
+	uint8_t buffer[EEPROM_OUT_CFG_BUFFER_SIZE];
+	uint16_t startAddress = 0x0000;
+	HAL_StatusTypeDef retVal = HAL_OK;
+
+	retVal = HAL_I2C_Mem_Read(hi2c, EEPROM_I2C_ADDRESS, startAddress, 2, buffer, sizeof(buffer), EEPROM_TIMEOUT);
+
+	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
+	{
+		outputStruct[i].inputEnable[0]  = buffer[i * 6 * sizeof(uint16_t)] << 8;
+		outputStruct[i].inputEnable[0] |= buffer[(i * 6 * sizeof(uint16_t)) + 1];
+
+		outputStruct[i].inputEnable[1]  = buffer[(i * 6 * sizeof(uint16_t)) + 2] << 8;
+		outputStruct[i].inputEnable[1] |= buffer[(i * 6 * sizeof(uint16_t)) + 3];
+
+		outputStruct[i].inputLevels[0]  = buffer[(i * 6 * sizeof(uint16_t)) + 4] << 8;
+		outputStruct[i].inputLevels[0] |= buffer[(i * 6 * sizeof(uint16_t)) + 5];
+
+		outputStruct[i].inputLevels[1]  = buffer[(i * 6 * sizeof(uint16_t)) + 6] << 8;
+		outputStruct[i].inputLevels[1] |= buffer[(i * 6 * sizeof(uint16_t)) + 7];
+
+		outputStruct[i].currentThresholds  = buffer[(i * 6 * sizeof(uint16_t)) + 8] << 8;
+		outputStruct[i].currentThresholds |= buffer[(i * 6 * sizeof(uint16_t)) + 8];
+
+		outputStruct[i].timeoutOutputFuse  = buffer[(i * 6 * sizeof(uint16_t)) + 10] << 8;
+		outputStruct[i].timeoutOutputFuse |= buffer[(i * 6 * sizeof(uint16_t)) + 11];
+	}
+
+	return retVal;
+}
+
+static HAL_StatusTypeDef Output_Cfg_Save_To_EEPROM(I2C_HandleTypeDef* hi2c)
+{
+	uint8_t buffer[EEPROM_OUT_CFG_BUFFER_SIZE];
+
+	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
+	{
+		buffer[i * 6 * sizeof(uint16_t)]	   = outputStruct[i].inputEnable[0] >> 8;
+		buffer[(i * 6 * sizeof(uint16_t)) + 1] = outputStruct[i].inputEnable[0] & 0xff;
+
+		buffer[(i * 6 * sizeof(uint16_t)) + 2] = outputStruct[i].inputEnable[1] >> 8;
+		buffer[(i * 6 * sizeof(uint16_t)) + 3] = outputStruct[i].inputEnable[1] & 0xff;
+
+		buffer[(i * 6 * sizeof(uint16_t)) + 4] = outputStruct[i].inputLevels[0] >> 8;
+		buffer[(i * 6 * sizeof(uint16_t)) + 5] = outputStruct[i].inputLevels[0] & 0xff;
+
+		buffer[(i * 6 * sizeof(uint16_t)) + 6] = outputStruct[i].inputLevels[1] >> 8;
+		buffer[(i * 6 * sizeof(uint16_t)) + 7] = outputStruct[i].inputLevels[1] & 0xff;
+
+		buffer[(i * 6 * sizeof(uint16_t)) + 8] = outputStruct[i].currentThresholds >> 8;
+		buffer[(i * 6 * sizeof(uint16_t)) + 9] = outputStruct[i].currentThresholds & 0xff;
+
+		buffer[(i * 6 * sizeof(uint16_t)) + 10] = outputStruct[i].timeoutOutputFuse >> 8;
+		buffer[(i * 6 * sizeof(uint16_t)) + 11] = outputStruct[i].timeoutOutputFuse & 0xff;
+	}
+
+	return HAL_I2C_Mem_Write(hi2c, EEPROM_I2C_ADDRESS, EEPROM_OUT_CFG_ADDRESS, 2, buffer, sizeof(buffer), EEPROM_TIMEOUT);
+}
+
+static HAL_StatusTypeDef PWM_Output_Cfg_Load_From_EEPROM(I2C_HandleTypeDef* hi2c)
+{
+	uint8_t buffer[EEPROM_PWM_CFG_BUFFER_SIZE];
+	HAL_StatusTypeDef retVal = HAL_OK;
+
+	retVal = HAL_I2C_Mem_Read(hi2c, EEPROM_I2C_ADDRESS, EEPROM_PWM_CFG_ADDRESS, 2, buffer, sizeof(buffer), EEPROM_TIMEOUT);
+
+	for(uint8_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
+	{
+		pwmOutStruct[i].outputType    = buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t))))];
+
+		pwmOutStruct[i].pwmFrequency  = buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 2];
+		pwmOutStruct[i].pwmFrequency |= buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 3];
+
+		pwmOutStruct[i].presetEnable[0]  = buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 4];
+		pwmOutStruct[i].presetEnable[0] |= buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 5];
+
+		pwmOutStruct[i].presetInputs[0]  = buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 6];
+		pwmOutStruct[i].presetInputs[0] |= buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 7];
+
+		pwmOutStruct[i].presetDutyCycle[0]  = buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 8];
+		pwmOutStruct[i].presetDutyCycle[0] |= buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 9];
+
+		pwmOutStruct[i].presetEnable[1]  = buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 10];
+		pwmOutStruct[i].presetEnable[1] |= buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 11];
+
+		pwmOutStruct[i].presetInputs[1]  = buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 12];
+		pwmOutStruct[i].presetInputs[1] |= buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 13];
+
+		pwmOutStruct[i].presetDutyCycle[1]  = buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 14];
+		pwmOutStruct[i].presetDutyCycle[1] |= buffer[(i * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))) + 15];
+	}
+
+	return retVal;
+}
+
+static HAL_StatusTypeDef PWM_Output_Cfg_Save_To_EEPROM(I2C_HandleTypeDef* hi2c)
+{
+	return HAL_OK;
+}

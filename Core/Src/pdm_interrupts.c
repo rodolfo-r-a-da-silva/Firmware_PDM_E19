@@ -7,9 +7,11 @@
 
 #include "pdm.h"
 
+uint32_t teste = 0;
+
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-	if(HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &CAN_Rx_Message, CAN_Rx_Data) == HAL_OK)
+	if(HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &canRxMessage, canRxData) == HAL_OK)
 	{
 		PDM_CAN_Process_Rx_Data();
 
@@ -19,36 +21,50 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	return;
 }
 
-//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-//{
-//	PDM_Input_Process();
-//
-//	PDM_Output_Process();
-//
-//	return;
-//}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	PDM_Input_Process();
 
-//void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
-//{
-//	return;
-//}
+	PDM_Output_Process();
+
+	return;
+}
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
 {
+	if(htim->Instance == TIM6)
+	{
+		teste++;
+		HAL_TIM_Base_Stop_IT(htim);
+		flagReading[1] = Data_Read_Ready;
+	}
+
 	if(htim->Instance == TIM7)
 	{
-		Accumulator_Msg_10Hz++;
-		Accumulator_Msg_25Hz++;
-		Accumulator_Msg_50Hz++;
-		Accumulator_Msg_80Hz++,
-		Accumulator_Msg_100Hz++;
+		accMsg10Hz++;
+		accMsg25Hz++;
+		accMsg50Hz++;
+		accMsg80Hz++,
+		accMsg100Hz++;
 
-		Accumulator_Delay++;
-		Accumulator_Output_Check++;
-		Accumulator_Temp_Read++;
-		Accumulator_Volt_Read++;
+		accUsbData++;
 
-		Accumulator_USB_Data++;
+		accOutputFuse[0]++;
+		accOutputFuse[1]++;
+		accOutputFuse[2]++;
+		accOutputFuse[3]++;
+		accOutputFuse[4]++;
+		accOutputFuse[5]++;
+		accOutputFuse[6]++;
+		accOutputFuse[7]++;
+		accOutputFuse[8]++;
+		accOutputFuse[9]++;
+		accOutputFuse[10]++;
+		accOutputFuse[11]++;
+		accOutputFuse[12]++;
+		accOutputFuse[13]++;
+		accOutputFuse[14]++;
+		accOutputFuse[15]++;
 	}
 
 	return;

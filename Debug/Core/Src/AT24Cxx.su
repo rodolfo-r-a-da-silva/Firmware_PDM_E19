@@ -1,5 +1,0 @@
-../Core/Src/AT24Cxx.c:10:19:AT24Cxx_Read	40	static
-../Core/Src/AT24Cxx.c:15:19:AT24Cxx_Read_DMA	32	static
-../Core/Src/AT24Cxx.c:20:19:AT24Cxx_Random_Read	40	static
-../Core/Src/AT24Cxx.c:32:19:AT24Cxx_Write	40	static
-../Core/Src/AT24Cxx.c:37:19:AT24Cxx_Write_DMA	32	static

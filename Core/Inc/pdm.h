@@ -10,11 +10,7 @@
 
 #include "main.h"
 
-//#include "PCF8574.h"
-#include "AT24Cxx.h"
-
 /*BEGIN DEFINES*/
-//#define LQFP64
 
 #define OUTPUT_FUSE_FREQ			25
 
@@ -22,26 +18,26 @@
 #define NBR_OF_OUTPUTS				16
 #define NBR_OF_PWM_OUTPUTS			4
 
-#define EEPROM_OUTPUT_SIZE			(NBR_OF_OUTPUTS * 6 * sizeof(uint16_t))
-#define EEPROM_PWM_CONFIG_SIZE		(NBR_OF_PWM_OUTPUTS * ((5 * sizeof(uint8_t)) + (14 * sizeof(uint16_t)) + (2 * sizeof(uint32_t))))
-#define EEPROM_PWM_MAP_BUFFER_SIZE	(NBR_OF_PWM_OUTPUTS * PWM_TABLE_MAX_SIZE * PWM_TABLE_MAX_SIZE * sizeof(uint16_t))
-#define EEPROM_BUFFER_SIZE			(EEPROM_OUTPUT_SIZE + EEPROM_PWM_CONFIG_SIZE + EEPROM_PWM_MAP_BUFFER_SIZE + ((2 + NBR_OF_DATA_CHANNELS) * sizeof(uint8_t)))
-#define EEPROM_WRITE_CYCLE			50
-
 #define OUTPUT_PWM_ENABLE			0x01
 #define OUTPUT_PWM_DISABLE			0x00
 
 #define OUTPUT_PWM_CAN_ENABLE		0x10
 #define OUTPUT_PWM_CAN_DISABLE		0x00
 
-#define PWM_FREQ_1000HZ				9999
-#define PWM_FREQ_2000HZ				4999
-#define PWM_FREQ_5000HZ				1999
-#define PWM_FREQ_8000HZ				1249
-#define PWM_FREQ_10000HZ			999
+#define PWM_FREQ_100HZ				899
+#define PWM_FREQ_250HZ				359
+#define PWM_FREQ_500Hz				179
+#define PWM_FREQ_750HZ				119
+#define PWM_FREQ_1000HZ				89
+#define PWM_FREQ_2500HZ				35
+#define PWM_FREQ_5000HZ				17
+#define PWM_FREQ_7500HZ				11
+#define PWM_FREQ_10000HZ			8
+#define PWM_FREQ_15000HZ			5
 
-#define PWM_TABLE_MAX_SIZE			15
+#define PWM_TABLE_MAX_SIZE			16
 
+//DATA TRANSMISSION
 #define DATA_FREQ_USB				1000
 #define DATA_FREQ_10HZ				1000
 #define DATA_FREQ_25HZ				400
@@ -50,90 +46,80 @@
 #define DATA_FREQ_100HZ				100
 #define DATA_NO_TRANSMISSION		0
 
-#define CURRENT_LINEAR				5879
-#define CURRENT_OFFSET				37596
-#define CURRENT_DIV_FACT			10000
+//DATA CONVERSION CONSTANTS
+#define CURRENT_LINEAR				588
+#define CURRENT_OFFSET				-40000//3760
+#define CURRENT_DIV_FACT			1000
 #define TEMPERATURE_LINEAR			-22
 #define TEMPERATURE_OFFSET			40677
 #define TEMPERATURE_DIV_FACT		10
-#define VOLTAGE_LINEAR				4804
+#define VOLTAGE_LINEAR				7400//9567
 #define VOLTAGE_DIV_FACT			10000
-#define MCU_TEMP_LINEAR				32234
-#define MCU_TEMP_OFFSET				-2790000
-#define MCU_TEMP_DIV_FACT			1000
+#define MCU_TEMP_LINEAR				32
+#define MCU_TEMP_OFFSET				-27900
+#define MCU_TEMP_DIV_FACT			1
 
 #define ADC_THRESHOLD_LOW			10
 #define ADC_THRESHOLD_HIGH			4000
 
-//us *100
-#define READING_ADC_DELAY			140
-#define READING_DELAY				3//60 + READING_ADC_DELAY
-//ms
-#define READING_DELAY_TEMP			10
-#define READING_DELAY_VOLT			10
+//us
+#define READING_DELAY_CURR			300
+#define READING_DELAY_TEMP			350
+#define READING_DELAY_VOLT			300
 
-#define USB_COMMAND_CONNECT			0x01
-#define USB_COMMAND_DISCONNECT		0x02
-#define USB_COMMAND_READ_CONFIG		0x03
-#define USB_COMMAND_WRITE_CONFIG	0x04
-#define USB_COMMAND_READ_DATA		0x05
+#define EEPROM_I2C_ADDRESS			0xA0
+#define EEPROM_TIMEOUT				10
+#define EEPROM_OUT_CFG_ADDRESS		0x0000
+#define EEPROM_PWM_CFG_ADDRESS		0x00C0
+#define EEPROM_PWM1_CFG1_ADDRESS	0x0100
+#define EEPROM_PWM1_CFG2_ADDRESS	0x107F
+#define EEPROM_PWM2_CFG1_ADDRESS	0x1FFE
+#define EEPROM_PWM2_CFG2_ADDRESS	0x2F7D
+#define EEPROM_PWM3_CFG1_ADDRESS	0x3EFC
+#define EEPROM_PWM3_CFG2_ADDRESS	0x4E7B
+#define EEPROM_PWM4_CFG1_ADDRESS	0x5DFA
+#define EEPROM_PWM4_CFG2_ADDRESS	0x6D79
+#define EEPROM_OUT_CFG_BUFFER_SIZE	NBR_OF_OUTPUTS * 6 * sizeof(uint16_t)
+#define EEPROM_PWM_CFG_BUFFER_SIZE	NBR_OF_PWM_OUTPUTS * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))
+#define EEPROM_PWM_CFG_MAX_SIZE		0x0F7F
 /*END DEFINES*/
 
 /*BEGIN MACROS*/
 #define __PDM_ID_BUFFER_INIT()								\
 		for(uint16_t i = 0; i < NBR_OF_DATA_CHANNELS; i++)	\
-			Data_ID_Buffer[i] = i << 1;
+			dataIdBuffer[i] = i << 1;
 
 #define __PDM_INPUT_CONDITION_COMPARE(__ENABLED_INPUTS__, __INPUT_LEVELS__)	\
-		(((Input_Pin_Levels & (__ENABLED_INPUTS__)) == (__INPUT_LEVELS__)))
+		(((inputLevels & (__ENABLED_INPUTS__)) == ((__INPUT_LEVELS__) & (__ENABLED_INPUTS__))) && ((__ENABLED_INPUTS__) != 0))
 
-#ifdef LQFP64
+#define __PDM_FUSE_CONDITION(__OUT_NUMBER__)													\
+		(outputCurrent[(__OUT_NUMBER__) - 1] > thresholdFuse[(__OUT_NUMBER__) - 1])				\
+		&& (accFuse[(__OUT_NUMBER__) - 1] > timeoutFuse[(__OUT_NUMBER__) - 1])					\
+		&& (timeoutFuse[(__OUT_NUMBER__) - 1] > 0) && (thresholdFuse[(__OUT_NUMBER__) - 1] > 0)	\
+		&& (((flagDriverSafety >> ((__OUT_NUMBER__) - 1)) & 0x01) == 0x00)
+
 #define __PDM_PWM_SELECT_TIM(__PWM_OUT_NUMBER__)	\
 		switch((__PWM_OUT_NUMBER__))				\
 		{											\
 		case 0:										\
 			htim = &htim3;							\
-			tim_channel = TIM_CHANNEL_4;			\
-			break;									\
-		case 1:										\
-			htim = &htim3;							\
-			tim_channel = TIM_CHANNEL_3;			\
-			break;									\
-		case 2:										\
-			htim = &htim2;							\
-			tim_channel = TIM_CHANNEL_3;			\
-			break;									\
-		case 3:										\
-			htim = &htim2;							\
-			tim_channel = TIM_CHANNEL_4;			\
-			break;									\
-		default:									\
-			return;									\
-		}
-#else
-#define __PDM_PWM_SELECT_TIM(__PWM_OUT_NUMBER__)	\
-		switch((__PWM_OUT_NUMBER__))				\
-		{											\
-		case 0:										\
-			htim = &htim3;							\
-			tim_channel = TIM_CHANNEL_4;			\
+			timChannel = TIM_CHANNEL_4;				\
 			break;									\
 		case 1:										\
 			htim = &htim8;							\
-			tim_channel = TIM_CHANNEL_2;			\
+			timChannel = TIM_CHANNEL_2;				\
 			break;									\
 		case 2:										\
 			htim = &htim2;							\
-			tim_channel = TIM_CHANNEL_3;			\
+			timChannel = TIM_CHANNEL_3;				\
 			break;									\
 		case 3:										\
 			htim = &htim1;							\
-			tim_channel = TIM_CHANNEL_4;			\
+			timChannel = TIM_CHANNEL_4;				\
 			break;									\
 		default:									\
 			return;									\
 		}
-#endif
 
 #define __PDM_LINEAR_INTERPOLATION(__X__, __X0__, __X1__, __Y0__, __Y1__)						\
 		(((((__X__) - (__X0__)) * ((__Y1__) - (__Y0__))) / ((__X1__) - (__X0__))) + (__Y0__))
@@ -142,6 +128,9 @@
 		__PDM_LINEAR_INTERPOLATION((__Y__), (__Y0__), (__Y1__),															\
 				(__PDM_LINEAR_INTERPOLATION((__X__), (__X0__), (__X1__), (__Z00__), (__Z01__))),						\
 				(__PDM_LINEAR_INTERPOLATION((__X__), (__X0__), (__X1__), (__Z10__), (__Z11__))))
+
+#define __PDM_GET_PWM_MAP_BYTE_SIZE(__PWM_OUT_NUMBER__)																								\
+		pwmOutStruct[__PWM_OUT_NUMBER__].pwmMapStruct->mapLengths[0] * pwmOutStruct[__PWM_OUT_NUMBER__].pwmMapStruct->mapLengths[1] * sizeof(uint16_t)
 
 #define __PDM_CONVERT_CURRENT(__ADC_VALUE__)	((((__ADC_VALUE__) * CURRENT_LINEAR) + CURRENT_OFFSET) / CURRENT_DIV_FACT)
 
@@ -204,49 +193,67 @@ typedef enum{
 }PDM_Data_Freq;
 
 typedef enum{
-	Data_Read_Current0		= 0x00,
+	Data_Read_Ready,
+	Data_Read_Waiting,
+	Data_Read_Current0,
 	Data_Read_Current1,
 	Data_Read_Temperature,
 	Data_Read_Voltage
 }PDM_Data_Read;
 
+//typedef enum{
+//	PWM_FREQ_1kHz			= 0x01,
+//	PWM_FREQ_2kHz,
+//	PWM_FREQ_5kHz,
+//	PWM_FREQ_8kHz,
+//	PWM_FREQ_10kHz
+//}PDM_PWM_FREQ;
+
 typedef enum{
-	PWM_FREQ_1kHz			= 0x01,
-	PWM_FREQ_2kHz,
-	PWM_FREQ_5kHz,
-	PWM_FREQ_8kHz,
-	PWM_FREQ_10kHz
-}PDM_PWM_FREQ;
+	OutType_Standard 		= 0x00,
+	OutType_Preset,
+	OutType_Map,
+	OutType_ANN,
+	OutType_Error
+}PDM_OutType;
 /*END ENUMS TYPEDEFS*/
 
 /*BEGIN STRUCT TYPEDEFS*/
 typedef struct{
-	uint16_t Enabled_Inputs[2];
-	uint16_t Input_Levels[2];
-	uint16_t Current_Thresholds;
-	uint16_t Timeout_Output_Fuse;
+	//Used for PWM CAN
+	uint16_t commandVarID[2];
+	uint32_t commandVarCanId;
+	uint32_t commandVarCanMask;
+
+	uint8_t mapLengths[2];
+	int16_t commandVar[2];
+	//[0][i]: column; [1][j]: line
+	int16_t* commandVarStep[2];
+	//[column][line]
+	uint16_t** dutyCycleMap;
+}PDM_PWM_Map_Struct;
+
+typedef struct{
+	uint16_t inputEnable[2];
+	uint16_t inputLevels[2];
+	uint16_t currentThresholds;
+	uint16_t timeoutOutputFuse;
 }Output_Control_Struct;
 
 typedef struct{
-	uint16_t Duty_Cycle;
-	uint16_t PWM_Frequency;
+	uint16_t dutyCycle;
+
+	//Used for configuration
+	PDM_OutType outputType;
+	uint8_t currentCfg;
+	uint16_t pwmFrequency;
 
 	//Used to set specific duty cycles
-	uint16_t Input_DC_Preset_Enable[2];
-	uint16_t Input_DC_Preset[2];
-	uint16_t Duty_Cycle_Preset[2];
+	uint16_t presetEnable[2];
+	uint16_t presetInputs[2];
+	uint16_t presetDutyCycle[2];
 
-	//Used for PWM CAN
-	uint8_t Command_Var_Position[2];
-	uint32_t Command_Var_CAN_ID[2];
-
-	uint8_t Map_Lengths[2];
-	int16_t Command_Var[2];
-	//[0][i]: column; [1][j]: line
-	int16_t Command_Var_Lim[2][2];
-	int16_t Command_Var_Step[2][PWM_TABLE_MAX_SIZE];
-	//[line][column]
-	uint16_t Duty_Cycle_Map[PWM_TABLE_MAX_SIZE][PWM_TABLE_MAX_SIZE];
+	PDM_PWM_Map_Struct* pwmMapStruct;
 }PWM_Control_Struct;
 /*END STRUCT TYPEDEFS*/
 
@@ -256,63 +263,53 @@ extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
 extern CRC_HandleTypeDef hcrc;
 extern I2C_HandleTypeDef hi2c1;
+extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim6;
 extern TIM_HandleTypeDef htim7;
-
-#ifndef LQFP64
-extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim8;
-#endif
 
 //CAN
 extern uint8_t
-	CAN_Baud_Rate,
-	CAN_Rx_Data[8],
-	CAN_Tx_Data[8];
-extern uint32_t pTxMailbox;
-extern CAN_RxHeaderTypeDef CAN_Rx_Message;
-extern CAN_TxHeaderTypeDef CAN_Tx_Message;
+	canBaudRate,
+	canRxData[8],
+	canTxData[8];
+extern uint32_t canTxMailbox;
+extern CAN_RxHeaderTypeDef canRxMessage;
+extern CAN_TxHeaderTypeDef canTxMessage;
 
 //CONFIGURATION
 extern uint8_t
-	USB_Connected_Flag,
-	USB_VCP_Parameters[7];
-
-//CURRENT MONITORING
-extern uint16_t
-	Driver_Overcurrent_Flag,
-	Driver_Safety_Flag;
+	usbConnectedFlag,
+	usbVcpParameters[7];
 
 //DATA
-extern uint8_t
-	Data_Conversion,
-	Data_Freq_Buffer[30];
+extern uint8_t dataFreqBuffer[30];
 extern uint16_t
-	Data_Buffer[30],
-	Data_ID_Buffer[30];
-extern uint16_t ADC_BUFFER[10];
+	dataBuffer[30],
+	dataIdBuffer[30];
+extern uint16_t adcBuffer[10];
+
+//FLAGS
+extern uint16_t flagDriverSafety;
+extern PDM_Data_Read flagReading[2];
 
 //OUTPUTS
-extern uint8_t PWM_Pin_Status;
-extern uint16_t Input_Pin_Levels;
-extern Output_Control_Struct Output_Pin[16];
-extern PWM_Control_Struct PWM_Pins[4];
+extern uint8_t pwmPinStatus;
+extern uint16_t inputLevels;
+extern Output_Control_Struct outputStruct[16];
+extern PWM_Control_Struct pwmOutStruct[4];
 
 //TIMING
-extern int32_t Accumulator_Delay;
-
 extern uint32_t
-	Accumulator_Msg_10Hz,
-	Accumulator_Msg_25Hz,
-	Accumulator_Msg_50Hz,
-	Accumulator_Msg_80Hz,
-	Accumulator_Msg_100Hz,
-	Accumulator_USB_Data,
-	Accumulator_Output_Check,
-	Accumulator_Temp_Read,
-	Accumulator_Volt_Read,
-	Accumulator_Output_Fuse[16];
+	accMsg10Hz,
+	accMsg25Hz,
+	accMsg50Hz,
+	accMsg80Hz,
+	accMsg100Hz,
+	accUsbData,
+	accOutputFuse[16];
 /*END DECLARED VARIABLES*/
 
 /*BEGIN CAN FUNCTION PROTOTYPES*/
@@ -328,6 +325,8 @@ void PDM_CAN_Process_Rx_Data();
 /*BEGIN CONFIGURATION FUNCTION PROTOTYPES*/
 void PDM_Init(CAN_HandleTypeDef *hcan, I2C_HandleTypeDef *hi2c);
 
+HAL_StatusTypeDef PDM_PWM_Map_Load_From_EEPROM(I2C_HandleTypeDef* hi2c, PWM_Control_Struct* pwm_struct, uint16_t mem_address);
+
 void PDM_USB_Process(uint8_t *Data, uint16_t Size);
 
 void PDM_USB_Transmit_Data();
@@ -336,21 +335,19 @@ void PDM_Hard_Code_Config();
 /*END CONFIGURATION FUNCTION PROTOTYPES*/
 
 /*BEGIN CONVERSION FUNCTION PROTOTYPES*/
-HAL_StatusTypeDef PDM_Read_Data(uint8_t *Data_read);
+HAL_StatusTypeDef PDM_Data_Conversion(TIM_HandleTypeDef *htim);
 /*END CONVERSION FUNCTION PROTOTYPES*/
 
 /*BEGIN HSD CONTROL FUNCTION PROTOTYPES*/
 void PDM_Input_Process();
 
 void PDM_Output_Process();
-
-void PDM_Output_Fuse();
 /*END HSD CONTROL FUNCTION PROTOTYPES*/
 
 /*BEGIN HSD PWM CONTROL FUNCTION PROTOTYPES*/
-void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number);
+void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number, uint16_t mem_address);
 
-void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_number);
+void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_number, GPIO_PinState output_level);
 /*END HSD PWM CONTROL FUNCTION PROTOTYPES*/
 
 #endif /* INC_PDM_H_ */

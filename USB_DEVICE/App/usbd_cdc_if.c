@@ -220,24 +220,24 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
   /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
   /*******************************************************************************/
     case CDC_SET_LINE_CODING:
-    	USB_VCP_Parameters[0] = pbuf[0];
-    	USB_VCP_Parameters[1] = pbuf[1];
-    	USB_VCP_Parameters[2] = pbuf[2];
-    	USB_VCP_Parameters[3] = pbuf[3];
-    	USB_VCP_Parameters[4] = pbuf[4];
-    	USB_VCP_Parameters[5] = pbuf[5];
-    	USB_VCP_Parameters[6] = pbuf[6];
+    	usbVcpParameters[0] = pbuf[0];
+    	usbVcpParameters[1] = pbuf[1];
+    	usbVcpParameters[2] = pbuf[2];
+    	usbVcpParameters[3] = pbuf[3];
+    	usbVcpParameters[4] = pbuf[4];
+    	usbVcpParameters[5] = pbuf[5];
+    	usbVcpParameters[6] = pbuf[6];
 
     break;
 
     case CDC_GET_LINE_CODING:
-    	pbuf[0] = USB_VCP_Parameters[0];
-    	pbuf[1] = USB_VCP_Parameters[1];
-    	pbuf[2] = USB_VCP_Parameters[2];
-    	pbuf[3] = USB_VCP_Parameters[3];
-    	pbuf[4] = USB_VCP_Parameters[4];
-    	pbuf[5] = USB_VCP_Parameters[5];
-    	pbuf[6] = USB_VCP_Parameters[6];
+    	pbuf[0] = usbVcpParameters[0];
+    	pbuf[1] = usbVcpParameters[1];
+    	pbuf[2] = usbVcpParameters[2];
+    	pbuf[3] = usbVcpParameters[3];
+    	pbuf[4] = usbVcpParameters[4];
+    	pbuf[5] = usbVcpParameters[5];
+    	pbuf[6] = usbVcpParameters[6];
 
     break;
 

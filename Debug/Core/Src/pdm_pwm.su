@@ -1,4 +1,0 @@
-../Core/Src/pdm_pwm.c:11:13:PWM_Duty_Cycle_Set	32	static
-../Core/Src/pdm_pwm.c:131:13:PWM_Process_Condition	16	static
-../Core/Src/pdm_pwm.c:175:6:PDM_PWM_Init	40	static
-../Core/Src/pdm_pwm.c:215:6:PDM_PWM_Output_Process	24	static
