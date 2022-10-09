@@ -8,13 +8,12 @@
 #include "pdm.h"
 
 //CAN
-uint8_t
-	canBaudRate,
-	canRxData[8],
-	canTxData[8];
+uint8_t canRxData[8];
+uint8_t canTxData[8];
 uint32_t canTxMailbox;
 CAN_RxHeaderTypeDef canRxMessage;
 CAN_TxHeaderTypeDef canTxMessage;
+PDM_CAN_Config canConfig;
 
 //CONFIGURATION
 uint8_t

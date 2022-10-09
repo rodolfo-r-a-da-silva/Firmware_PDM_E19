@@ -25,7 +25,7 @@ HAL_StatusTypeDef PDM_Data_Conversion(TIM_HandleTypeDef *htim)
 		for(uint8_t i = 0; i < 8; i++)
 		{
 			//Convert ADC into current
-			dataBuffer[i * 2] = __PDM_CONVERT_CURRENT(adcBuffer[i]);
+			dataBuffer[i * 2] = adcBuffer[i];//__PDM_CONVERT_CURRENT(adcBuffer[i]);
 
 			if((dataBuffer[i * 2] <= outputStruct[i * 2].currentThresholds)
 					|| (outputStruct[i * 2].timeoutOutputFuse == 0))
@@ -58,7 +58,7 @@ HAL_StatusTypeDef PDM_Data_Conversion(TIM_HandleTypeDef *htim)
 		for(uint8_t i = 0; i < 8; i++)
 		{
 			//Convert ADC into current
-			dataBuffer[(i * 2) + 1] = __PDM_CONVERT_CURRENT(adcBuffer[i]);
+			dataBuffer[(i * 2) + 1] = adcBuffer[i];//__PDM_CONVERT_CURRENT(adcBuffer[i]);
 
 			if((dataBuffer[(i * 2) + 1] <= outputStruct[(i * 2) + 1].currentThresholds)
 					|| (outputStruct[(i * 2) + 1].timeoutOutputFuse == 0))
@@ -91,7 +91,7 @@ HAL_StatusTypeDef PDM_Data_Conversion(TIM_HandleTypeDef *htim)
 		for(uint8_t i = 0; i < 8; i++)
 		{
 			//Convert ADC into temperature
-			dataBuffer[16 + i] = __PDM_CONVERT_TEMPERATURE(adcBuffer[i], adcBuffer[8]);
+			dataBuffer[16 + i] = adcBuffer[i];//__PDM_CONVERT_TEMPERATURE(adcBuffer[i], adcBuffer[8]);
 
 			if((adcBuffer[i] < ADC_THRESHOLD_LOW) || (adcBuffer[i] > ADC_THRESHOLD_HIGH))
 				dataIdBuffer[16 + i] |= 1;
@@ -112,13 +112,12 @@ HAL_StatusTypeDef PDM_Data_Conversion(TIM_HandleTypeDef *htim)
 	case Data_Read_Voltage:
 
 		//Convert ADC into voltage if the ADC value is valid
-		if((adcBuffer[0] < ADC_THRESHOLD_LOW) || (adcBuffer[0] > ADC_THRESHOLD_HIGH))
+		if((adcBuffer[1] < ADC_THRESHOLD_LOW) || (adcBuffer[1] > ADC_THRESHOLD_HIGH))
 			dataIdBuffer[24] &= 0xFFFE;
 		else
-		{
-			dataBuffer[24] = __PDM_CONVERT_VOLTAGE(adcBuffer[0], adcBuffer[8]);
 			dataIdBuffer[24] |= 1;
-		}
+
+		dataBuffer[24] = adcBuffer[0] - adcBuffer[8];//__PDM_CONVERT_VOLTAGE(adcBuffer[0], adcBuffer[8]);
 
 		HAL_GPIO_WritePin(SEN_GPIO_Port, SEN_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(SEL0_GPIO_Port, SEL0_Pin, GPIO_PIN_RESET);
@@ -143,7 +142,7 @@ HAL_StatusTypeDef PDM_Data_Conversion(TIM_HandleTypeDef *htim)
 	}
 
 	//Convert ADC into MCU temperature
-	dataBuffer[25] = __PDM_CONVERT_MCU_TEMPERATURE(adcBuffer[9]);
+	dataBuffer[25] = adcBuffer[9];//__PDM_CONVERT_MCU_TEMPERATURE(adcBuffer[9]);
 
 	//Start readings timer
 	retVal = HAL_TIM_Base_Start_IT(htim);

@@ -1,4 +1,5 @@
-../Core/Src/pdm_driver_pwm.c:15:6:PDM_PWM_Init	32	static
-../Core/Src/pdm_driver_pwm.c:57:6:PDM_PWM_Output_Process	24	static
-../Core/Src/pdm_driver_pwm.c:97:13:PWM_DeAlloc	24	static
-../Core/Src/pdm_driver_pwm.c:138:17:PWM_Map_Duty_Cycle_Set	32	static
+../Core/Src/pdm_driver_pwm.c:16:6:PDM_PWM_Init	40	static
+../Core/Src/pdm_driver_pwm.c:62:6:PDM_PWM_Output_Process	24	static
+../Core/Src/pdm_driver_pwm.c:131:13:PWM_DeAlloc	24	static
+../Core/Src/pdm_driver_pwm.c:191:26:PWM_SoftStart	32	static
+../Core/Src/pdm_driver_pwm.c:215:17:PWM_Map_Duty_Cycle_Set	32	static

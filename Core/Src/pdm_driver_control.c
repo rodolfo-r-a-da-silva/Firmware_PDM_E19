@@ -56,8 +56,8 @@ void PDM_Output_Process()
 	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
 	{
 		if((((flagDriverSafety >> i) & 0x01) == 0)
-				&& (__PDM_INPUT_CONDITION_COMPARE(outputStruct[i].inputEnable[0], outputStruct[i].inputLevels[0])
-				||  __PDM_INPUT_CONDITION_COMPARE(outputStruct[i].inputEnable[1], outputStruct[i].inputLevels[1])))
+				&& (__PDM_INPUT_CONDITION_COMPARE(outputStruct[i].inputEnable[0], outputStruct[i].inputLevels[0], outputStruct[i].outEnable[0])
+				||  __PDM_INPUT_CONDITION_COMPARE(outputStruct[i].inputEnable[1], outputStruct[i].inputLevels[1], outputStruct[i].outEnable[1])))
 			output_levels[i] = GPIO_PIN_SET;
 		else
 			output_levels[i] = GPIO_PIN_RESET;

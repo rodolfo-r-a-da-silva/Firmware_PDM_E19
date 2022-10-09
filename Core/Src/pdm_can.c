@@ -7,6 +7,8 @@
 
 #include "pdm.h"
 
+static HAL_StatusTypeDef PDM_CAN_Filter_Config(CAN_HandleTypeDef* hcan, uint8_t filter_nbr, uint32_t filter_id, uint32_t filter_mask, uint32_t filter_ide);
+
 //Initializes CAN bus communication
 //CAN_HandleTypeDef *hcan - CAN handler struct pointer
 //uint8_t CAN_BaudRate - Baud Rate value in enum: 	0: Disable
@@ -15,74 +17,45 @@
 //													3: 500	kbps
 //													4: 1000 kbps
 //Returns HAL_CAN_Start status
-HAL_StatusTypeDef PDM_CAN_Init(CAN_HandleTypeDef *hcan, uint8_t can_baud_rate)
+HAL_StatusTypeDef PDM_CAN_Init(CAN_HandleTypeDef *hcan, PDM_CAN_Config* filter_struct)
 {
 	//Deinitialize CAN bus for new configuration
 	HAL_CAN_DeInit(hcan);
 
 	//Sets CAN prescaler to match selected baud rate
 	//If CAN bus is configured as disabled, leaves the function without initialization
-	if(can_baud_rate == CAN_Disable)
+	switch(filter_struct->baudRate)
 	{
-		return HAL_OK;
-	}
-	else if(can_baud_rate == CAN_125kbps)
-	{
+	case CAN_125kbps:
 		hcan->Init.Prescaler = 40;
-	}
+		break;
 
-	else if(can_baud_rate == CAN_250kbps)
-	{
+	case CAN_250kbps:
 		hcan->Init.Prescaler = 20;
-	}
+		break;
 
-	else if(can_baud_rate == CAN_500kbps)
-	{
+	case CAN_500kbps:
 		hcan->Init.Prescaler = 10;
-	}
+		break;
 
-	else if(can_baud_rate == CAN_1000kbps)
-	{
+	case CAN_1000kbps:
 		hcan->Init.Prescaler = 5;
+		break;
+
+		default:
+			return HAL_OK;
 	}
 
 	//Reinitialize CAN bus
 	HAL_CAN_Init(hcan);
 
-	//Initialize receive callbacks if there is at least one PWM CAN enabled
-	if((pwmPinStatus & 0xF0) != 0x00)
-		HAL_CAN_ActivateNotification(hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+	PDM_CAN_Filter_Config(hcan, 0, CAN_CONFIG_FILTER, CAN_CONFIG_MASK, CAN_ID_EXT);
+
+	//Initialize receive callbacks
+	HAL_CAN_ActivateNotification(hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
 	//Starts CAN bus communication and leaves the function
 	return HAL_CAN_Start(hcan);
-}
-
-//Initializes CAN bus filter for its respective PWM output
-//CAN_HandleTypeDef *hcan - CAN handler struct pointer
-//PWM_Control_Struct *pwm_struct - control struct for PWM output
-//uint8_t pwm_out_number - number of PWM output
-//Returns HAL_CAN_ConfigFilter status
-HAL_StatusTypeDef PDM_PWM_CAN_Filter_Config(CAN_HandleTypeDef *hcan, PWM_Control_Struct *pwm_struct, uint8_t pwm_out_number)
-{
-	//Double check if PWM CAN is enabled for this specific output
-	if(((pwmPinStatus >> pwm_out_number) & 0x10) != OUTPUT_PWM_CAN_ENABLE)
-		return HAL_ERROR;
-
-	CAN_FilterTypeDef CAN_Filter_Config;
-
-	//Sets CAN filter configuration
-//	CAN_Filter_Config.FilterBank = pwm_out_number;
-//	CAN_Filter_Config.FilterMode = CAN_FILTERMODE_IDLIST;
-//	CAN_Filter_Config.FilterScale = CAN_FILTERSCALE_32BIT;
-//	CAN_Filter_Config.FilterIdHigh = pwm_struct->Command_Var_CAN_ID[0] >> 13;
-//	CAN_Filter_Config.FilterIdLow = (pwm_struct->Command_Var_CAN_ID[0] << 3) & 0xFFF8;
-//	CAN_Filter_Config.FilterMaskIdHigh = pwm_struct->Command_Var_CAN_ID[1] >> 13;
-//	CAN_Filter_Config.FilterMaskIdLow = (pwm_struct->Command_Var_CAN_ID[1] << 3) & 0xFFF8;
-//	CAN_Filter_Config.FilterFIFOAssignment = CAN_RX_FIFO0;
-//	CAN_Filter_Config.FilterActivation = ENABLE;
-
-	//Loads CAN filter configuration into filter bank
-	return HAL_CAN_ConfigFilter(hcan, &CAN_Filter_Config);
 }
 
 //Start data transmission for data with specific frequency
@@ -97,6 +70,8 @@ HAL_StatusTypeDef PDM_PWM_CAN_Filter_Config(CAN_HandleTypeDef *hcan, PWM_Control
 HAL_StatusTypeDef PDM_CAN_Transmit_Data(CAN_HandleTypeDef* hcan, uint8_t data_freq)
 {
 	HAL_StatusTypeDef ret_val = HAL_OK;
+
+	return ret_val;
 
 	//Selects CAN transmission ID based on data transmission frequency
 	switch(data_freq)
@@ -167,4 +142,28 @@ HAL_StatusTypeDef PDM_CAN_Transmit_Data(CAN_HandleTypeDef* hcan, uint8_t data_fr
 void PDM_CAN_Process_Rx_Data()
 {
 	return;
+}
+
+//Initializes CAN bus filter for its respective PWM output
+//CAN_HandleTypeDef *hcan - CAN handler struct pointer
+//PWM_Control_Struct *pwm_struct - control struct for PWM output
+//uint8_t pwm_out_number - number of PWM output
+//Returns HAL_CAN_ConfigFilter status
+static HAL_StatusTypeDef PDM_CAN_Filter_Config(CAN_HandleTypeDef* hcan, uint8_t filter_nbr, uint32_t filter_id, uint32_t filter_mask, uint32_t filter_ide)
+{
+	CAN_FilterTypeDef canFilterConfig;
+
+	//Sets CAN filter configuration
+	canFilterConfig.FilterBank = filter_nbr;
+	canFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+	canFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+	canFilterConfig.FilterIdHigh = filter_id >> 13;
+	canFilterConfig.FilterIdLow = (filter_id << 3) | (filter_ide & 0x0004);
+	canFilterConfig.FilterMaskIdHigh = filter_mask >> 13;
+	canFilterConfig.FilterMaskIdLow = (filter_mask << 3) | 0x0004;
+	canFilterConfig.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+	canFilterConfig.FilterActivation = ENABLE;
+
+	//Loads CAN filter configuration into filter bank
+	return HAL_CAN_ConfigFilter(hcan, &canFilterConfig);
 }

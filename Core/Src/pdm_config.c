@@ -30,16 +30,16 @@ void PDM_Init(CAN_HandleTypeDef *hcan, I2C_HandleTypeDef *hi2c)
 //	PWM_Output_Cfg_Load_From_EEPROM(hi2c);
 
 	//Initializes each PWM able output
-	PDM_PWM_Init(hcan, &pwmOutStruct[0], 0, EEPROM_PWM1_CFG1_ADDRESS);
-	PDM_PWM_Init(hcan, &pwmOutStruct[1], 1, EEPROM_PWM2_CFG1_ADDRESS);
-	PDM_PWM_Init(hcan, &pwmOutStruct[2], 2, EEPROM_PWM3_CFG1_ADDRESS);
-	PDM_PWM_Init(hcan, &pwmOutStruct[3], 3, EEPROM_PWM4_CFG1_ADDRESS);
+	PDM_PWM_Init(hcan, &pwmOutStruct[0], 0);
+	PDM_PWM_Init(hcan, &pwmOutStruct[1], 1);
+	PDM_PWM_Init(hcan, &pwmOutStruct[2], 2);
+	PDM_PWM_Init(hcan, &pwmOutStruct[3], 3);
 
 	//Checks input pin levels
 	PDM_Input_Process();
 
 	//Initializes CAN bus
-	PDM_CAN_Init(hcan, canBaudRate);
+	PDM_CAN_Init(hcan, &canConfig);
 
 	//Initializes CAN ID buffer
 	__PDM_ID_BUFFER_INIT();
@@ -69,6 +69,82 @@ void PDM_USB_Process(uint8_t *Data, uint16_t Size)
 void PDM_USB_Transmit_Data()
 {
 	return;
+}
+
+HAL_StatusTypeDef PDM_PWM_Load_SoftStart_From_EEPROM(I2C_HandleTypeDef*hi2c, PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number)
+{
+	uint8_t buffer;
+	uint16_t buffer_address = 0;
+	HAL_StatusTypeDef retVal = HAL_OK;
+
+	switch(pwm_out_number)
+	{
+	case 0:
+		buffer_address = EEPROM_PWM1_SST1_ADDRESS;
+		break;
+
+	case 1:
+		buffer_address = EEPROM_PWM2_SST1_ADDRESS;
+		break;
+
+	case 2:
+		buffer_address = EEPROM_PWM3_SST1_ADDRESS;
+		break;
+
+	case 3:
+		buffer_address = EEPROM_PWM4_SST1_ADDRESS;
+		break;
+	}
+
+
+
+	switch(pwm_struct->pwmFrequency)
+	{
+	case PWM_FREQ_100HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 100) / 1000;
+		break;
+
+	case PWM_FREQ_250HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 250) / 1000;
+		break;
+
+	case PWM_FREQ_500HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 500) / 1000;
+		break;
+
+	case PWM_FREQ_750HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 750) / 1000;
+		break;
+
+	case PWM_FREQ_1000HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 1000) / 1000;
+		break;
+
+	case PWM_FREQ_2500HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 2500) / 1000;
+		break;
+
+	case PWM_FREQ_5000HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 5000) / 1000;
+		break;
+
+	case PWM_FREQ_7500HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 7500) / 1000;
+		break;
+
+	case PWM_FREQ_10000HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 10000) / 1000;
+		break;
+
+	case PWM_FREQ_15000HZ:
+		pwm_struct->softStartStruct->slope = (pwm_struct->softStartStruct->turnOnTime * 15000) / 1000;
+		break;
+
+	default:
+		break;
+	}
+
+	return retVal;
 }
 
 HAL_StatusTypeDef PDM_PWM_Map_Load_From_EEPROM(I2C_HandleTypeDef* hi2c, PWM_Control_Struct* pwm_struct, uint16_t mem_address)
@@ -151,81 +227,123 @@ HAL_StatusTypeDef PDM_PWM_Map_Load_From_EEPROM(I2C_HandleTypeDef* hi2c, PWM_Cont
 //Use for configuration without or with partial EEPROM data
 __weak void PDM_Hard_Code_Config()
 {
+	//Output 1 - Bomba de Combustível
+	outputStruct[0].outEnable[0] = Output_Enabled;
 	outputStruct[0].inputEnable[0] = 0x0011;
 	outputStruct[0].inputLevels[0] = 0x0000;
-	outputStruct[0].inputEnable[1] = 0x0018;
-	outputStruct[0].inputLevels[1] = 0x0000;
+	pwmOutStruct[0].pwmFrequency = PWM_FREQ_10000HZ;
 	pwmOutStruct[0].outputType = OutType_Preset;
-	pwmOutStruct[0].presetEnable[0] = 0x0001;
+	pwmOutStruct[0].presetEnable[0] = 0x0011;
 	pwmOutStruct[0].presetInputs[0] = 0x0000;
 	pwmOutStruct[0].presetDutyCycle[0] = 1000;
-	pwmOutStruct[0].presetEnable[1] = 0x0001;
-	pwmOutStruct[0].presetInputs[1] = 0x0000;
-	pwmOutStruct[0].presetDutyCycle[1] = 800;
 
-
-	outputStruct[1].inputEnable[0] = 0x0016;
+	//Output 2 - Ventoinha Esquerda
+	outputStruct[1].outEnable[0] = Output_Enabled;
+	outputStruct[1].inputEnable[0] = 0x001E;
 	outputStruct[1].inputLevels[0] = 0x0002;
+	pwmOutStruct[1].pwmFrequency = PWM_FREQ_10000HZ;
 	pwmOutStruct[1].outputType = OutType_Preset;
-	pwmOutStruct[1].presetEnable[0] = 0x0004;
-	pwmOutStruct[1].presetInputs[0] = 0x0000;
+	pwmOutStruct[1].presetEnable[0] = 0x001E;
+	pwmOutStruct[1].presetInputs[0] = 0x0002;
 	pwmOutStruct[1].presetDutyCycle[0] = 1000;
 
-	outputStruct[2].inputEnable[0] = 0x0016;
+	//Output 3 - Ventoinha Direita
+	outputStruct[2].outEnable[0] = Output_Enabled;
+	outputStruct[2].inputEnable[0] = 0x001E;
 	outputStruct[2].inputLevels[0] = 0x0002;
+	pwmOutStruct[2].pwmFrequency = PWM_FREQ_10000HZ;
 	pwmOutStruct[2].outputType = OutType_Preset;
-	pwmOutStruct[2].presetEnable[0] = 0x0004;
-	pwmOutStruct[2].presetInputs[0] = 0x0000;
+	pwmOutStruct[2].presetEnable[0] = 0x001E;
+	pwmOutStruct[2].presetInputs[0] = 0x0002;
 	pwmOutStruct[2].presetDutyCycle[0] = 1000;
 
-	outputStruct[3].inputEnable[0] = 0x0016;
-	outputStruct[3].inputLevels[0] = 0x0002;
-	pwmOutStruct[3].outputType = OutType_Preset;
-	pwmOutStruct[3].presetEnable[0] = 0x0004;
-	pwmOutStruct[3].presetInputs[0] = 0x0000;
-	pwmOutStruct[3].presetDutyCycle[0] = 1000;
+	//Output 4 - Ventoinha de Óleo -> FT
+//	outputStruct[3].outEnable[0] = Output_Enabled;
+//	outputStruct[3].inputEnable[0] = 0x001E;
+//	outputStruct[3].inputLevels[0] = 0x0002;
+//	pwmOutStruct[3].pwmFrequency = PWM_FREQ_10000HZ;
+//	pwmOutStruct[3].outputType = OutType_Preset;
+//	pwmOutStruct[3].presetEnable[0] = 0x001E;
+//	pwmOutStruct[3].presetInputs[0] = 0x0002;
+//	pwmOutStruct[3].presetDutyCycle[0] = 1000;
+	outputStruct[3].outEnable[0] = Output_Enabled;
+	outputStruct[3].inputEnable[0] = 0x0010;
+	outputStruct[3].inputLevels[0] = 0x0000;
 
+	//Output 5 - FT -> desabilitada
+//	outputStruct[4].outEnable[0] = Output_Enabled;
+	outputStruct[4].outEnable[0] = Output_Disabled;
 	outputStruct[4].inputEnable[0] = 0x0010;
 	outputStruct[4].inputLevels[0] = 0x0000;
 
-	outputStruct[5].inputEnable[0] = 0x0010;
+	//Output 6 - Velocidade de Roda FL e FR
+//	outputStruct[5].outEnable[0] = Output_Enabled;
+	outputStruct[5].outEnable[0] = Output_Disabled;
+	outputStruct[5].inputEnable[0] = 0x0018;
 	outputStruct[5].inputLevels[0] = 0x0000;
 
-	outputStruct[6].inputEnable[0] = 0x0010;
+	//Output 7 - Velocidade de Roda RL e RR
+	outputStruct[6].outEnable[0] = Output_Enabled;
+	outputStruct[6].inputEnable[0] = 0x0018;
 	outputStruct[6].inputLevels[0] = 0x0000;
 
+	//Output 8 - Buck DRS
+	outputStruct[7].outEnable[0] = Output_Enabled;
 	outputStruct[7].inputEnable[0] = 0x0008;
 	outputStruct[7].inputLevels[0] = 0x0000;
 
+	//Output 9 - ETM e CMP
+	outputStruct[8].outEnable[0] = Output_Enabled;
 	outputStruct[8].inputEnable[0] = 0x0010;
 	outputStruct[8].inputLevels[0] = 0x0000;
 
+	//Output 10 - P. de Óleo e P. do Shifter
+	outputStruct[9].outEnable[0] = Output_Enabled;
 	outputStruct[9].inputEnable[0] = 0x0010;
 	outputStruct[9].inputLevels[0] = 0x0000;
 
+	//Output 11 - Solenoides e P. de Combustível
+	outputStruct[10].outEnable[0] = Output_Enabled;
 	outputStruct[10].inputEnable[0] = 0x0010;
 	outputStruct[10].inputLevels[0] = 0x0000;
 
-	outputStruct[11].inputEnable[0] = 0x001A;
-	outputStruct[11].inputLevels[0] = 0x0000;
+	//Output 12 - Relay de Partida
+	outputStruct[11].outEnable[0] = Output_Enabled;
+	outputStruct[11].inputEnable[0] = 0;//0x001A;
+	outputStruct[11].inputLevels[0] = 0;//0x0008;
 
+	//Output 13 - Buck DAq e Brake Light
+	outputStruct[12].outEnable[0] = Output_Enabled;
 	outputStruct[12].inputEnable[0] = 0x0008;
 	outputStruct[12].inputLevels[0] = 0x0000;
 
+	//Output 14 - Bobina
+	outputStruct[13].outEnable[0] = Output_Enabled;
 	outputStruct[13].inputEnable[0] = 0x0010;
 	outputStruct[13].inputLevels[0] = 0x0000;
 
+	//Output 15 - Bico Injetor
+	outputStruct[14].outEnable[0] = Output_Enabled;
 	outputStruct[14].inputEnable[0] = 0x0010;
 	outputStruct[14].inputLevels[0] = 0x0000;
 
+	//Output 16 - WBO2
+	outputStruct[15].outEnable[0] = Output_Enabled;
 	outputStruct[15].inputEnable[0] = 0x0010;
 	outputStruct[15].inputLevels[0] = 0x0000;
+
+	canConfig.baudRate = CAN_1000kbps;
+
+	for(uint8_t i = 0; i < 16; i++)
+		dataFreqBuffer[i] = Data_Freq_50Hz;
 
 	return;
 }
 
 static void Output_Reset_State()
 {
+	HAL_GPIO_WritePin(FAULTRST_GPIO_Port, FAULTRST_Pin, GPIO_PIN_SET);
+
 	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
 		memset(&outputStruct[i], '\0', sizeof(Output_Control_Struct));
 

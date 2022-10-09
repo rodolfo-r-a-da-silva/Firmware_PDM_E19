@@ -11,6 +11,11 @@
 #include "main.h"
 
 /*BEGIN DEFINES*/
+//CAN
+#define CAN_CONFIG_FILTER			0x00
+#define CAN_CONFIG_MASK				0x00
+#define CAN_DATA_ID					0x1E35C000
+#define CAN_DATA_MASK				0x1FFFF000
 
 #define OUTPUT_FUSE_FREQ			25
 
@@ -26,7 +31,7 @@
 
 #define PWM_FREQ_100HZ				899
 #define PWM_FREQ_250HZ				359
-#define PWM_FREQ_500Hz				179
+#define PWM_FREQ_500HZ				179
 #define PWM_FREQ_750HZ				119
 #define PWM_FREQ_1000HZ				89
 #define PWM_FREQ_2500HZ				35
@@ -52,7 +57,7 @@
 #define CURRENT_DIV_FACT			1000
 #define TEMPERATURE_LINEAR			-22
 #define TEMPERATURE_OFFSET			40677
-#define TEMPERATURE_DIV_FACT		10
+#define TEMPERATURE_DIV_FACT		1
 #define VOLTAGE_LINEAR				7400//9567
 #define VOLTAGE_DIV_FACT			10000
 #define MCU_TEMP_LINEAR				32
@@ -63,9 +68,9 @@
 #define ADC_THRESHOLD_HIGH			4000
 
 //us
-#define READING_DELAY_CURR			300
-#define READING_DELAY_TEMP			350
-#define READING_DELAY_VOLT			300
+#define READING_DELAY_CURR			1000
+#define READING_DELAY_TEMP			1000
+#define READING_DELAY_VOLT			1000
 
 #define EEPROM_I2C_ADDRESS			0xA0
 #define EEPROM_TIMEOUT				10
@@ -73,12 +78,20 @@
 #define EEPROM_PWM_CFG_ADDRESS		0x00C0
 #define EEPROM_PWM1_CFG1_ADDRESS	0x0100
 #define EEPROM_PWM1_CFG2_ADDRESS	0x107F
+#define EEPROM_PWM1_SST1_ADDRESS	0x0
+#define EEPROM_PWM1_SST2_ADDRESS	0x0
 #define EEPROM_PWM2_CFG1_ADDRESS	0x1FFE
 #define EEPROM_PWM2_CFG2_ADDRESS	0x2F7D
+#define EEPROM_PWM2_SST1_ADDRESS	0x0
+#define EEPROM_PWM2_SST2_ADDRESS	0x0
 #define EEPROM_PWM3_CFG1_ADDRESS	0x3EFC
 #define EEPROM_PWM3_CFG2_ADDRESS	0x4E7B
+#define EEPROM_PWM3_SST1_ADDRESS	0x0
+#define EEPROM_PWM3_SST2_ADDRESS	0x0
 #define EEPROM_PWM4_CFG1_ADDRESS	0x5DFA
 #define EEPROM_PWM4_CFG2_ADDRESS	0x6D79
+#define EEPROM_PWM4_SST1_ADDRESS	0x0
+#define EEPROM_PWM4_SST2_ADDRESS	0x0
 #define EEPROM_OUT_CFG_BUFFER_SIZE	NBR_OF_OUTPUTS * 6 * sizeof(uint16_t)
 #define EEPROM_PWM_CFG_BUFFER_SIZE	NBR_OF_PWM_OUTPUTS * ((2 * sizeof(uint8_t)) + (7 * sizeof(uint16_t)))
 #define EEPROM_PWM_CFG_MAX_SIZE		0x0F7F
@@ -89,8 +102,8 @@
 		for(uint16_t i = 0; i < NBR_OF_DATA_CHANNELS; i++)	\
 			dataIdBuffer[i] = i << 1;
 
-#define __PDM_INPUT_CONDITION_COMPARE(__ENABLED_INPUTS__, __INPUT_LEVELS__)	\
-		(((inputLevels & (__ENABLED_INPUTS__)) == ((__INPUT_LEVELS__) & (__ENABLED_INPUTS__))) && ((__ENABLED_INPUTS__) != 0))
+#define __PDM_INPUT_CONDITION_COMPARE(__ENABLED_INPUTS__, __INPUT_LEVELS__, __OUTPUT_ENABLE__)	\
+		(((inputLevels & (__ENABLED_INPUTS__)) == ((__INPUT_LEVELS__) & (__ENABLED_INPUTS__))) && ((__OUTPUT_ENABLE__) == Output_Enabled))
 
 #define __PDM_FUSE_CONDITION(__OUT_NUMBER__)													\
 		(outputCurrent[(__OUT_NUMBER__) - 1] > thresholdFuse[(__OUT_NUMBER__) - 1])				\
@@ -210,50 +223,90 @@ typedef enum{
 //}PDM_PWM_FREQ;
 
 typedef enum{
+	Output_Disabled,
+	Output_Enabled
+}PDM_Output_Enabled;
+
+typedef enum{
 	OutType_Standard 		= 0x00,
 	OutType_Preset,
 	OutType_Map,
 	OutType_ANN,
 	OutType_Error
 }PDM_OutType;
+
+typedef enum{
+	ANN_In_CAN,
+	ANN_In_Neuron,
+	ANN_In_Local
+}PDM_ANN_InType;
+
+typedef enum{
+	SoftStart_Disabled,
+	SoftStart_Enabled
+}PDM_SoftStart;
 /*END ENUMS TYPEDEFS*/
 
 /*BEGIN STRUCT TYPEDEFS*/
 typedef struct{
-	//Used for PWM CAN
-	uint16_t commandVarID[2];
-	uint32_t commandVarCanId;
-	uint32_t commandVarCanMask;
+	PDM_CAN_BaudRate baudRate;
+	uint16_t enabledFilters;
 
-	uint8_t mapLengths[2];
-	int16_t commandVar[2];
-	//[0][i]: column; [1][j]: line
-	int16_t* commandVarStep[2];
-	//[column][line]
-	uint16_t** dutyCycleMap;
-}PDM_PWM_Map_Struct;
+	uint16_t filterIde;
+	uint32_t filters[13];
+	uint32_t masks[13];
+}PDM_CAN_Config;
 
 typedef struct{
 	uint16_t inputEnable[2];
 	uint16_t inputLevels[2];
 	uint16_t currentThresholds;
 	uint16_t timeoutOutputFuse;
+	PDM_Output_Enabled outEnable[2];
 }Output_Control_Struct;
+
+typedef struct{
+	uint16_t dutyCycles;
+	uint16_t turnOnTime;
+	uint16_t* dutyCycleBuffer;
+	uint32_t slope;
+}PDM_PWM_SoftStart_Struct;
+
+typedef struct{
+	int16_t output;
+	int16_t* weigths;
+	uint16_t* inputId;
+	PDM_ANN_InType* inputType;
+}PDM_PWM_ANN_Struct;
+
+typedef struct{
+	//Used for PWM CAN
+	uint16_t canVarID[2];
+
+	uint8_t mapLengths[2];
+	int16_t commandVar[2];
+	//[0][i]: column; [1][j]: line
+	int16_t* commandVarStep[2];
+	//[column][line] or [x][y]
+	uint16_t** dutyCycleMap;
+}PDM_PWM_Map_Struct;
 
 typedef struct{
 	uint16_t dutyCycle;
 
 	//Used for configuration
-	PDM_OutType outputType;
-	uint8_t currentCfg;
 	uint16_t pwmFrequency;
+	PDM_OutType outputType;
+	PDM_SoftStart softStart;
 
 	//Used to set specific duty cycles
 	uint16_t presetEnable[2];
 	uint16_t presetInputs[2];
 	uint16_t presetDutyCycle[2];
 
+	PDM_PWM_ANN_Struct* pwmAnnStruct;
 	PDM_PWM_Map_Struct* pwmMapStruct;
+	PDM_PWM_SoftStart_Struct* softStartStruct;
 }PWM_Control_Struct;
 /*END STRUCT TYPEDEFS*/
 
@@ -271,13 +324,12 @@ extern TIM_HandleTypeDef htim7;
 extern TIM_HandleTypeDef htim8;
 
 //CAN
-extern uint8_t
-	canBaudRate,
-	canRxData[8],
-	canTxData[8];
+extern uint8_t canRxData[8];
+extern uint8_t canTxData[8];
 extern uint32_t canTxMailbox;
 extern CAN_RxHeaderTypeDef canRxMessage;
 extern CAN_TxHeaderTypeDef canTxMessage;
+extern PDM_CAN_Config canConfig;
 
 //CONFIGURATION
 extern uint8_t
@@ -313,7 +365,7 @@ extern uint32_t
 /*END DECLARED VARIABLES*/
 
 /*BEGIN CAN FUNCTION PROTOTYPES*/
-HAL_StatusTypeDef PDM_CAN_Init(CAN_HandleTypeDef *hcan, uint8_t CAN_BaudRate);
+HAL_StatusTypeDef PDM_CAN_Init(CAN_HandleTypeDef *hcan, PDM_CAN_Config* filter_struct);
 
 HAL_StatusTypeDef PDM_PWM_CAN_Filter_Config(CAN_HandleTypeDef *hcan, PWM_Control_Struct *pwm_struct, uint8_t can_filter_bank);
 
@@ -324,6 +376,8 @@ void PDM_CAN_Process_Rx_Data();
 
 /*BEGIN CONFIGURATION FUNCTION PROTOTYPES*/
 void PDM_Init(CAN_HandleTypeDef *hcan, I2C_HandleTypeDef *hi2c);
+
+HAL_StatusTypeDef PDM_PWM_Load_SoftStart_From_EEPROM(I2C_HandleTypeDef*hi2c, PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number);
 
 HAL_StatusTypeDef PDM_PWM_Map_Load_From_EEPROM(I2C_HandleTypeDef* hi2c, PWM_Control_Struct* pwm_struct, uint16_t mem_address);
 
@@ -345,7 +399,7 @@ void PDM_Output_Process();
 /*END HSD CONTROL FUNCTION PROTOTYPES*/
 
 /*BEGIN HSD PWM CONTROL FUNCTION PROTOTYPES*/
-void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number, uint16_t mem_address);
+void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number);
 
 void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_number, GPIO_PinState output_level);
 /*END HSD PWM CONTROL FUNCTION PROTOTYPES*/
