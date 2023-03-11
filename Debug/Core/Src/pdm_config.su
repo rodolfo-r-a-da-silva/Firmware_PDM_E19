@@ -1,11 +1,5 @@
-../Core/Src/pdm_config.c:20:6:PDM_Init	24	static
-../Core/Src/pdm_config.c:63:6:PDM_USB_Process	16	static
-../Core/Src/pdm_config.c:69:6:PDM_USB_Transmit_Data	4	static
-../Core/Src/pdm_config.c:74:19:PDM_PWM_Load_SoftStart_From_EEPROM	32	static
-../Core/Src/pdm_config.c:150:19:PDM_PWM_Map_Load_From_EEPROM	4024	static
-../Core/Src/pdm_config.c:228:13:PDM_Hard_Code_Config	16	static
-../Core/Src/pdm_config.c:343:13:Output_Reset_State	16	static
-../Core/Src/pdm_config.c:379:26:Output_Cfg_Load_From_EEPROM	232	static
-../Core/Src/pdm_config.c:411:26:Output_Cfg_Save_To_EEPROM	232	static
-../Core/Src/pdm_config.c:439:26:PWM_Output_Cfg_Load_From_EEPROM	104	static
-../Core/Src/pdm_config.c:475:26:PWM_Output_Cfg_Save_To_EEPROM	16	static
+../Core/Src/pdm_config.c:16:6:PDM_Init	24	static
+../Core/Src/pdm_config.c:52:6:PDM_USB_Process	16	static
+../Core/Src/pdm_config.c:58:6:PDM_USB_Transmit_Data	4	static
+../Core/Src/pdm_config.c:64:13:PDM_Hard_Code_Config	16	static
+../Core/Src/pdm_config.c:179:13:Output_Reset_State	16	static

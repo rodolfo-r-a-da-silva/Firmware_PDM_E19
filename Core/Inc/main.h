@@ -158,6 +158,7 @@ void Error_Handler(void);
 #define INPUT5_EXTI_IRQn EXTI4_IRQn
 #define INPUT6_Pin GPIO_PIN_5
 #define INPUT6_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

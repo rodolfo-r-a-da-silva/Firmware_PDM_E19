@@ -8,17 +8,15 @@
 #include "pdm.h"
 #include "stdlib.h"
 
-static void PWM_DeAlloc(PWM_Control_Struct *pwm_struct);
-static HAL_StatusTypeDef PWM_SoftStart(PWM_Control_Struct *pwm_struct);
+static void PWM_DeAlloc(PDM_PWM_Ctrl_Struct *pwm_struct);
 static uint16_t PWM_Map_Duty_Cycle_Set(PDM_PWM_Map_Struct* pwm_map_struct);
 
 //Initializes PWM output and sets its CAN bus filter
-void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8_t pwm_out_number)
+void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PDM_PWM_Ctrl_Struct* pwm_struct, uint8_t pwm_out_number)
 {
 	TIM_HandleTypeDef* htim;
 	uint16_t timChannel = 0;
 	uint16_t prescaler = 0;
-	uint16_t memAddress = 0;
 
 	//Sets the verify bit of the PWM output to sign if PWM is enabled
 	dataIdBuffer[NBR_OF_DATA_CHANNELS - NBR_OF_PWM_OUTPUTS + pwm_out_number] |= (pwmPinStatus >> pwm_out_number) & 0x01;
@@ -44,13 +42,6 @@ void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8
 	//Deallocates all pointers
 	PWM_DeAlloc(pwm_struct);
 
-	if(pwm_struct->softStart == SoftStart_Enabled)
-		PDM_PWM_Load_SoftStart_From_EEPROM(&hi2c1, pwm_struct, pwm_out_number);
-
-	//Configures 3D map or Artificial Neural Network
-	if(pwm_struct->outputType == OutType_Map)
-		PDM_PWM_Map_Load_From_EEPROM(&hi2c1, pwm_struct, memAddress);
-
 	//Deallocates all pointers if there is any allocation problem
 	if(pwm_struct->outputType == OutType_Error)
 		PWM_DeAlloc(pwm_struct);
@@ -59,7 +50,7 @@ void PDM_PWM_Init(CAN_HandleTypeDef *hcan, PWM_Control_Struct* pwm_struct, uint8
 }
 
 //Process input conditions and command variables and sets the PWM output duty cycle
-void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_number, GPIO_PinState output_level)
+void PDM_PWM_Output_Process(PDM_PWM_Ctrl_Struct *pwm_struct, uint8_t pwm_out_number, GPIO_PinState output_level)
 {
 	uint8_t softStart = 0;
 	uint16_t timChannel;
@@ -88,7 +79,7 @@ void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_numb
 			pwm_struct->dutyCycle = pwm_struct->presetDutyCycle[1];
 
 		//Sets duty cycle based on the 3D map if enabled
-		else if((pwm_struct->outputType == OutType_Map) && (pwm_struct->pwmMapStruct != NULL))
+		else if((pwm_struct->outputType == OutType_Pwm_Map) && (pwm_struct->pwmMapStruct != NULL))
 			pwm_struct->dutyCycle = PWM_Map_Duty_Cycle_Set(pwm_struct->pwmMapStruct);
 
 		else
@@ -98,37 +89,13 @@ void PDM_PWM_Output_Process(PWM_Control_Struct *pwm_struct, uint8_t pwm_out_numb
 	else
 		pwm_struct->dutyCycle = 0;
 
-	if(softStart == 0)
-		__HAL_TIM_SET_COMPARE(htim, timChannel, pwm_struct->dutyCycle);
-
-	else
-	{
-		if(PWM_SoftStart(pwm_struct) == HAL_OK)
-		{
-			if(pwm_out_number == 1)
-			{
-				HAL_TIMEx_PWMN_Stop(htim, timChannel);
-				HAL_TIMEx_PWMN_Start_DMA(htim, timChannel, (uint32_t*) pwm_struct->softStartStruct->dutyCycleBuffer, pwm_struct->softStartStruct->dutyCycles);
-			}
-
-			else
-			{
-				HAL_TIM_PWM_Stop(htim, timChannel);
-				HAL_TIM_PWM_Start_DMA(htim, timChannel, (uint32_t*) pwm_struct->softStartStruct->dutyCycleBuffer, pwm_struct->softStartStruct->dutyCycles);
-			}
-		}
-
-		else
-			__HAL_TIM_SET_COMPARE(htim, timChannel, pwm_struct->dutyCycle);
-	}
-
 	//Stores output duty cycle inside the data buffer to be sent via CAN/USB
 	dataBuffer[NBR_OF_DATA_CHANNELS - NBR_OF_PWM_OUTPUTS + pwm_out_number] = pwm_struct->dutyCycle;
 
 	return;
 }
 
-static void PWM_DeAlloc(PWM_Control_Struct *pwm_struct)
+static void PWM_DeAlloc(PDM_PWM_Ctrl_Struct *pwm_struct)
 {
 	if(pwm_struct->softStartStruct != NULL)
 	{
@@ -185,30 +152,6 @@ static void PWM_DeAlloc(PWM_Control_Struct *pwm_struct)
 		pwm_struct->outputType = OutType_Standard;
 
 	return;
-}
-
-//Sets the PWM soft start buffer
-static HAL_StatusTypeDef PWM_SoftStart(PWM_Control_Struct *pwm_struct)
-{
-	HAL_StatusTypeDef retVal = HAL_OK;
-
-	pwm_struct->softStartStruct->dutyCycles = (pwm_struct->softStartStruct->slope * pwm_struct->dutyCycle) / 1000;
-
-	pwm_struct->softStartStruct->dutyCycleBuffer = malloc(pwm_struct->softStartStruct->dutyCycles * sizeof(uint16_t));
-
-	if(pwm_struct->softStartStruct->dutyCycleBuffer != NULL)
-	{
-		for(uint16_t i = 0; i < pwm_struct->softStartStruct->dutyCycles; i++)
-			pwm_struct->softStartStruct->dutyCycleBuffer[i] = __PDM_LINEAR_INTERPOLATION(i, 0, pwm_struct->softStartStruct->dutyCycles,
-																							0, pwm_struct->dutyCycle);
-
-		retVal = HAL_OK;
-	}
-
-	else
-		retVal = HAL_ERROR;
-
-	return retVal;
 }
 
 //Sets PWM output duty cycle using its command variables
