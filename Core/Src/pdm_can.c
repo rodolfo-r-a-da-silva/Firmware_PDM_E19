@@ -10,8 +10,6 @@
 static HAL_StatusTypeDef Filter_Config(CAN_HandleTypeDef* hcan, uint32_t filter, uint8_t filterNbr);
 static HAL_StatusTypeDef Tx_Channel(CAN_HandleTypeDef* hcan, Data_Freq dataFreq, Data_Freq* dataFreqBuffer, uint16_t* dataBuffer, uint16_t* dataIdBuffer);
 static HAL_StatusTypeDef Tx_Fixed(CAN_HandleTypeDef* hcan, PDM_CAN_TxMsgType dataMsg, uint16_t* dataBuffer);
-static uint8_t Rx_Data_Prepare(CAN_RxHeaderTypeDef* rxHeader, uint8_t* rxData, PDM_CAN_Data_Struct* dataStruct, uint8_t dataNbr);
-static void Rx_Data_Timeout(void* dataStruct);
 
 /*BEGIN FUNCTIONS*/
 
@@ -58,13 +56,6 @@ HAL_StatusTypeDef PDM_CAN_Init(PDM_CAN_Config_Struct* filterStruct)
 		if(filterStruct->filters[i] != 0)
 			Filter_Config(filterStruct->hcan, filterStruct->filters[i], i);
 
-	//Create timers for CAN data and set them as timed out
-	for(uint8_t i = 0; i < filterStruct->nbrOfDataChannels; i++)
-	{
-		filterStruct->dataChannels[i]->timer = osTimerNew(Rx_Data_Timeout, osTimerOnce, filterStruct->dataChannels[i], NULL);
-		Rx_Data_Timeout((void*) filterStruct->dataChannels[i]);
-	}
-
 	//Initialize receive callbacks
 	HAL_CAN_ActivateNotification(filterStruct->hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
@@ -80,9 +71,9 @@ void PDM_CAN_Thread_Receive_Data(void* threadStruct)
 	//Struct containing CAN peripheral handle, CAN data and Config Queue handles, and thread semaphore handle
 	PDM_CanRxMsg_Thread_Struct* thrdStr = (PDM_CanRxMsg_Thread_Struct*) threadStruct;
 
-	uint8_t rxFlag;
 	uint8_t rxData[8];
 	CAN_RxHeaderTypeDef rxHeader;
+	PDM_Data_Queue_Struct rxStruct;
 
 #if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
 	//Thread stack check
@@ -98,15 +89,31 @@ void PDM_CAN_Thread_Receive_Data(void* threadStruct)
 		//Get CAN message data and process if there were no errors
 		if(HAL_CAN_GetRxMessage(thrdStr->canConfig->hcan, CAN_RX_FIFO0, &rxHeader, rxData) == HAL_OK)
 		{
-			rxFlag = Rx_Data_Prepare(&rxHeader, rxData, thrdStr->canConfig->dataChannels, thrdStr->canConfig->nbrOfDataChannels);	//Prepares CAN data to Queue buffer format
 
-			if((rxFlag & 0x01) == CAN_CONFIG_RECEIVED)	//Check type of received data
+			if(rxHeader->IDE == CAN_ID_STD)
+				rxStruct.id = (rxHeader->StdId << 3) | rxHeader->IDE;
+
+			else
+				rxStruct.id = (rxHeader->ExtId << 3) | rxHeader->IDE;
+
+			rxStruct.length = rxHeader->DLC;
+
+			for(uint8_t i = 0; i < rxStruct.length; i++)
+				rxStruct.data[i] = rxData[i];
+
+			rxStruct.source = Interrupt_CAN;
+
+			if(rxStruct.id == CAN_CONFIG_FILTER)	//Check if configuration data was received
 			{
+				osMessageQueuePut(thrdStr->chnQueueHandle, (void*) rxStruct, 0, 0);
 				osSemaphoreRelease(thrdStr->cfgSemaphoreHandle);	//Unblocks Configuration processing thread
 			}
 
-			else if((rxFlag & 0x02) == CAN_DATA_RECEIVED)
-				osSemaphoreRelease(thrdStr->outSemaphoreHandle);	//Unblocks Output processing thread
+			else
+			{
+				osMessageQueuePut(thrdStr->chnQueueHandle, (void*) rxStruct, 0, 0);
+				osSemaphoreRelease(thrdStr->chnSemaphoreHandle);	//Unblocks Output processing thread
+			}
 		}
 
 #if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
@@ -127,12 +134,14 @@ void PDM_CAN_Thread_Transmit_Data(void* threadStruct)
 	PDM_CanTxMsg_Thread_Struct* thrdStr = (PDM_CanTxMsg_Thread_Struct*) threadStruct;
 
 	//Thread execution timing
-	Data_Freq frequency;	//Frequency of execution
 	uint32_t periodTicks;	//Period in RTOS ticks
 	uint32_t delayTick;		//Kernel timestamp for when the thread should wake up
 
 	//Maximum time to wait for CAN Mutex reception
-	uint32_t timeout = pdMS_TO_TICKS(CAN_THREAD_TIMEOUT);	//Converts timeout in milliseconds to RTOS ticks
+	uint32_t timeout = CAN_THREAD_TIMEOUT;	//Converts timeout in milliseconds to RTOS ticks
+
+	//Buffer where Thread safe data is stored
+	uint16_t dataBuffer[NBR_OF_DATA_CHANNELS];
 
 #if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
 	//Thread stack check
@@ -141,26 +150,35 @@ void PDM_CAN_Thread_Transmit_Data(void* threadStruct)
 	UNUSED(unusedStack);					//Removes warning telling that the variable is unused
 #endif
 
-	//Receive frequency to transmit message, if failed, exits and delete the thread
-	if(osMessageQueueGet(thrdStr->freqQueueHandle, (Data_Freq*) &frequency, NULL, osWaitForever) != osOK)
-		osThreadExit();
-
-	__BUFFER_TO_FREQ(frequency, periodTicks);	//Converts frequency (Data_Freq) to period (milliseconds)
-	periodTicks = pdMS_TO_TICKS(periodTicks);	//Converts period in milliseconds to RTOS ticks
+	__BUFFER_TO_FREQ(thrdStr->dataFreq, periodTicks);	//Converts frequency (Data_Freq) to period (milliseconds)
+	periodTicks = pdMS_TO_TICKS(periodTicks);			//Converts period in milliseconds to RTOS ticks
 
 	delayTick = osKernelGetTickCount();	//Get kernel current timestamp
 
 	//Infinite loop for data transmission
 	for(;;)
 	{
-		if(osMutexAcquire(thrdStr->canMutexHandle, timeout) == osOK)	//Wait for Mutex acquisition
+		if(osMutexAcquire(thrdStr->canMutexHandle, timeout) == osOK)	//Wait for CAN Mutex acquisition
 		{
-			if(thrdStr->txMsgType == CAN_Msg_Channels)
-				Tx_Channel(thrdStr->hcan, frequency, thrdStr->dataFreqBuffer, thrdStr->dataBuffer, thrdStr->dataIdBuffer);	//Sends channels via CAN bus
-			else
-				Tx_Fixed(thrdStr->hcan, thrdStr->txMsgType, thrdStr->dataBuffer);	//Sends fixed data via CAN bus
+			if(osMutexAcquire(thrdStr->dataMutexHandle, timeout == osOK))	//Wait for data buffer Mutex acquisition
+			{
+				osMutexRelease(thrdStr->dataMutexHandle);	//Release data buffer Mutex
 
-			osMutexRelease(thrdStr->canMutexHandle);			//Release Mutex
+				switch(thrdStr->txMsgType)
+				{
+					case CAN_Msg_Channels:
+						//Sends channels via CAN bus
+						Tx_Channel(thrdStr->hcan, thrdStr->dataFreq, thrdStr->dataFreqBuffer, dataBuffer, thrdStr->dataIdBuffer);
+						break;
+
+					default:
+						//Sends fixed data via CAN bus
+						Tx_Fixed(thrdStr->hcan, thrdStr->txMsgType, dataBuffer);
+						break;
+				}
+			}
+
+			osMutexRelease(thrdStr->canMutexHandle);	//Release CAN Mutex
 		}
 
 #if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
@@ -359,17 +377,27 @@ static HAL_StatusTypeDef Tx_Fixed(CAN_HandleTypeDef* hcan, PDM_CAN_TxMsgType dat
 			break;
 
 		case CAN_Msg_General:
-			txHeader.DLC = 8;
+			txHeader.DLC = 6;
 			txHeader.ExtId = CAN_ID_GENERAL;
 
 			txData[0] = dataBuffer[Data_TempMCU] >> 8;
 			txData[1] = dataBuffer[Data_TempMCU] & 0xff;
 			txData[2] = dataBuffer[Data_Volt] >> 8;
 			txData[3] = dataBuffer[Data_Volt] & 0xff;
-			txData[4] = dataBuffer[Data_Output] >> 8;
-			txData[5] = dataBuffer[Data_Output] & 0xff;
-			txData[6] = dataBuffer[Data_Fuse] >> 8;
-			txData[7] = dataBuffer[Data_Fuse] & 0xff;
+			txData[4] = dataBuffer[Data_CurrTotal] >> 8;
+			txData[5] = dataBuffer[Data_CurrTotal] & 0xff;
+			break;
+
+		case CAN_Msg_Pins:
+			txHeader.DLC = 6;
+			txHeader.ExtId = CAN_ID_PINS;
+
+			txData[0] = dataBuffer[Data_Input] >> 8;
+			txData[1] = dataBuffer[Data_Input] & 0xff;
+			txData[2] = dataBuffer[Data_Output] >> 8;
+			txData[3] = dataBuffer[Data_Output] & 0xff;
+			txData[4] = dataBuffer[Data_Fuse] >> 8;
+			txData[5] = dataBuffer[Data_Fuse] & 0xff;
 			break;
 
 		case CAN_Msg_PWM:
@@ -399,175 +427,6 @@ static HAL_StatusTypeDef Tx_Fixed(CAN_HandleTypeDef* hcan, PDM_CAN_TxMsgType dat
 	}
 
 	return retVal;
-}
-
-//Prepares data to be sent to output process thread
-static uint8_t Rx_Data_Prepare(CAN_RxHeaderTypeDef* rxHeader, uint8_t* rxData, PDM_CAN_Data_Struct* dataStruct, uint8_t dataNbr)
-{
-	uint8_t data[3];
-	uint32_t filter = rxHeader->IDE;	//Auxiliary variable containing filter info
-	uint8_t retVal = 0;	//Indicates if data was received via CAN bus
-
-	//Places frame ID into filter variable
-	if(rxHeader->IDE == CAN_ID_EXT)
-		filter |= rxHeader->ExtId << 3;
-
-	else
-		filter |= rxHeader->StdId << 3;
-
-	for(uint8_t i = 0; i < dataNbr; i++)
-	{
-		if(dataStruct[i]->dataFilter == filter)
-		{
-			//Get data from CAN frame according to frame organization
-			switch(dataStruct[i]->type)
-			{
-				//For fixed position data in specific frame
-				//Will continue "for loop" if cast type is invalid
-				case CAN_Fixed:
-
-					if((dataStruct[i]->cast == Cast_Uint8) || (dataStruct[i]->cast == Cast_Int8))
-						data[0] = rxData[dataStruct[i]->offset];
-
-					if((dataStruct[i]->cast == Cast_Uint16) || (dataStruct[i]->cast == Cast_Int16))
-					{
-						data[0] = rxData[dataStruct[i]->offset];
-						data[1] = rxData[dataStruct[i]->offset + 1];
-					}
-
-					else
-						continue;
-
-					break;
-
-				//For data identification inside the frame's data field
-				//Will continue "for loop" if frame length is invalid or data isn't available
-				case CAN_Channel:
-
-					if((rxHeader->DLC != 4) && (rxHeader->DLC != 8))
-					{
-						if(dataStruct[i]->channel == ((rxData[1] << 8) | rxData[0]))
-						{
-							data[0] = rxData[2];
-							data[1] = rxData[3];
-						}
-
-						else if((dataStruct[i]->channel == ((rxData[4] << 8) | rxData[5])) && (rxHeader->DLC == 8))
-						{
-							data[0] = rxData[6];
-							data[1] = rxData[7];
-						}
-
-						else
-							continue;
-					}
-
-					else
-						continue;
-
-					break;
-
-				default:
-					continue;
-			}
-
-			//Cast data read from CAN bus to accommodate correct negative and positive values
-			//Use data mask in case of unsigned data and byte swap in case of 16 bit data
-			switch(dataStruct[i]->cast)
-			{
-				case Cast_Uint8:
-
-					dataStruct[i]->data = (int32_t) (data[0] & dataStruct[i]->mask);
-
-					break;
-
-				case Cast_Int8:
-
-					dataStruct[i]->data = (int32_t) ((int8_t) data[0]);
-
-					break;
-
-				case Cast_Uint16:
-					if(dataStruct[i]->alignment == Alignment_Swap)
-					{
-						data[2] = data[0];
-						data[0] = data[1];
-						data[1] = data[2];
-					}
-
-					dataStruct[i]->data = (int32_t) ((uint16_t) ((data[0] << 8) | data[1]) & dataStruct[i]->mask);
-
-					break;
-
-				case Cast_Int16:
-					if(dataStruct[i]->alignment == Alignment_Swap)
-					{
-						data[2] = data[0];
-						data[0] = data[1];
-						data[1] = data[2];
-					}
-
-					dataStruct[i]->data = (int32_t) ((int16_t) ((data[0] << 8) | data[1]));
-
-					break;
-
-				default:
-					continue;
-			}
-
-			//Reset timer if data was received and timer was created correctly
-			//Set return flag to indicate received value
-			if(osTimerStart(dataStruct[i]->timer, pdMS_TO_TICKS(dataStruct[i]->timeout)) == osOK)
-			{
-				dataStruct[i]->timeoutFlag = CAN_Data_Refresh;
-				retVal |= CAN_DATA_RECEIVED;
-			}
-
-			//Reset value and set flag to timeout if timer cannot be started
-			else
-				Rx_Data_Timeout((void*) &dataStruct[i]);
-		}
-	}
-
-	return retVal;
-}
-
-static void Rx_Data_Timeout(void* dataStruct)
-{
-	PDM_CAN_Data_Struct* dataStr = (PDM_CAN_Data_Struct*) dataStruct;
-
-	//Change data value if timeout happens
-	if(dataStr->keep == Data_Reset)
-	{
-		//Substitutes value based on which cast type is configured
-		//Will keep current value if there is no valid cast type
-		switch(dataStr->cast)
-		{
-			case Cast_Uint8:
-				dataStr->data = (int32_t) ((uint8_t) (dataStr->defaultVal & 0xff));
-				break;
-
-			case Cast_Int8:
-				dataStr->data = (int32_t) ((int8_t) (dataStr->defaultVal & 0xff));
-				break;
-
-			case Cast_Uint16:
-				dataStr->data = (int32_t) dataStr->defaultVal;
-				break;
-
-			case Cast_Int16:
-				dataStr->data = (int32_t) ((int16_t) dataStr->defaultVal);
-				break;
-
-			default:
-				break;
-		}
-	}
-
-	//Set flag indicating timeout
-	dataStr->timeoutFlag = CAN_Data_Timeout;
-
-	return;
 }
 
 /*END STATIC FUNCTIONS*/

@@ -7,10 +7,11 @@
 
 #include <pdm.h>
 
-static void Output_Set_State(PDM_Output_Ctrl_Struct* outputStruct, PDM_CAN_Rx_Struct* canRxStruct, uint32_t inputLevels);
-static void Output_CAN_Set_Level(PDM_CAN_Rx_Struct* canRxStruct, PDM_Output_CAN_Struct* canOutStruct);
+static void Output_Set_State(PDM_Output_Ctrl_Struct* outputStruct);
 static void Output_PWM_Set_DutyCycle(PDM_Output_Ctrl_Struct* outputStruct);
 static uint16_t Output_PWM_Set_Map_DutyCycle(PDM_PWM_Map_Struct* pwm_map_struct);
+
+/*BEGIN THREADS*/
 
 //Reads input pin levels, checks CAN data and sets output levels
 void PDM_Output_Thread(void* threadStruct)
@@ -25,7 +26,6 @@ void PDM_Output_Thread(void* threadStruct)
 	uint8_t canIde;
 	uint8_t canRxData[8];
 	uint32_t canId;
-	PDM_CAN_Rx_Struct canRxStruct;		//Store data received via CAN bus
 
 #if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
 	//Thread stack check
@@ -44,18 +44,14 @@ void PDM_Output_Thread(void* threadStruct)
 
 		//Set all output levels and PWM duty cycles
 		for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
-			Output_Set_State(thrdStr->outStruct[i], &canRxStruct);
-
-#if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
-		unusedStack = osThreadGetStackSpace(selfId);	//Checks minimum unused stack size
-#endif
+			Output_Set_State(thrdStr->outStruct[i]);
 
 		//Wait for any interaction that require output level changing
 		osSemaphoreAcquire(thrdStr->semaphoreHandle, osWaitForever);
 
-		//Check if any data was received via CAN bus
-		if(osMessageQueueGet(thrdStr->canQueueHandle, (void*) canRxStruct, NULL, 0) != osOK)
-			canRxStruct->canFlag = CAN_Idle;
+#if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
+		unusedStack = osThreadGetStackSpace(selfId);	//Checks minimum unused stack size
+#endif
 	}
 
 	osThreadExit(); //Exits thread if, for some reason, it reaches the end to avoid kernel errors
@@ -63,31 +59,12 @@ void PDM_Output_Thread(void* threadStruct)
 	return;
 }
 
-static void Output_Set_State(PDM_Output_Ctrl_Struct* outputStruct, PDM_CAN_Rx_Struct* canRxStruct, uint32_t inputLevels)
+/*END THREAD*/
+
+/*START STATIC FUNCTIONS*/
+
+static void Output_Set_State(PDM_Output_Ctrl_Struct* outputStruct)
 {
-	//Set input pin output flags
-	if(__PDM_INPUT_CONDITION_COMPARE(outputStruct->inputEnable[0], outputStruct->inputLevels[0], outputStruct->outEnable[0])
-			|| __PDM_INPUT_CONDITION_COMPARE(outputStruct->inputEnable[1], outputStruct->inputLevels[1], outputStruct->outEnable[1]))
-		outputStruct->outputState[OutState_Inputs] = GPIO_PIN_SET;
-	else
-		outputStruct->outputState[OutState_Inputs] = GPIO_PIN_RESET;
-
-	//Set delay output flags
-	switch(outputStruct->delayStruct.delayType)
-	{
-		case Delay_Standard:
-			break;
-
-		case Delay_Blink:
-			break;
-
-		case Delay_Pulse:
-			break;
-
-		default:
-			break;
-	}
-
 	//Set output level or PWM duty cycle
 	if(outputStruct->outputHardware == Output_GPIO)
 		HAL_GPIO_WritePin(outputStruct->outputState, outputStruct->outputPin, outputStruct->outputState[OutState_Current]);
@@ -256,3 +233,5 @@ static void Output_Delay_Callback(PDM_Output_Ctrl_Struct* outputStruct)
 {
 	return;
 }
+
+/*END STATIC FUNCTIONS*/

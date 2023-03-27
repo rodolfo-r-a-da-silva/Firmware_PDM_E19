@@ -16,14 +16,20 @@
 
 /*BEGIN DEFINES*/
 //FREERTOS QUEUE
-#define RTOS_QUEUE_CANRX_SIZE		sizeof(PDM_CAN_Rx_Struct)
-#define RTOS_QUEUE_CANRX_COUNT		1
+#define RTOS_QUEUE_CANCFG_SIZE		sizeof(PDM_Data_Queue_Struct)
+#define RTOS_QUEUE_CANCFG_COUNT		5
+#define RTOS_QUEUE_CANCHN_SIZE		sizeof(PDM_Data_Queue_Struct)
+#define RTOS_QUEUE_CANCHN_COUNT		5
 #define RTOS_QUEUE_CANTXFREQ_SIZE	1
 #define RTOS_QUEUE_CANTXFREQ_COUNT	1
-#define RTOS_QUEUE_USB_SIZE			30
+#define RTOS_QUEUE_USB_SIZE			34
 #define RTOS_QUEUE_USB_COUNT		1
 
 //FREERTOS SEMAPHORES
+#define RTOS_SEMAPHORE_CANCFG_MAX	1
+#define RTOS_SEMAPHORE_CANCFG_INIT	0
+#define RTOS_SEMAPHORE_CANCHN_MAX	1
+#define RTOS_SEMAPHORE_CANCHN_INIT	0
 #define RTOS_SEMAPHORE_CANRX_MAX	1
 #define RTOS_SEMAPHORE_CANRX_INIT	0
 #define RTOS_SEMAPHORE_OUT_MAX		5
@@ -36,6 +42,7 @@
 #define RTOS_THREAD_MEMSZ_CANTX	128
 #define RTOS_THREAD_MEMSZ_CFG	128
 #define RTOS_THREAD_MEMSZ_OUT	128
+#define RTOS_THREAD_MEMSZ_PRC	128
 #define RTOS_THREAD_MEMSZ_READ	128
 #define RTOS_THREAD_MEMSZ_USBRX	128
 #define RTOS_THREAD_MEMSZ_USBTX	128
@@ -43,6 +50,7 @@
 #define RTOS_THREAD_PRIO_CANTX	osPriorityLow
 #define RTOS_THREAD_PRIO_CFG	osPriorityHigh1
 #define RTOS_THREAD_PRIO_OUT	osPriorityAboveNormal1
+#define RTOS_THREAD_PRIO_PRC	osPriorityAboveNormal2
 #define RTOS_THREAD_PRIO_READ	osPriorityHigh
 #define RTOS_THREAD_PRIO_USBRX	osPriorityHigh2
 #define RTOS_THREAD_PRIO_USBTX	osPriorityLow
@@ -60,16 +68,20 @@
 #define CAN_ID_TEMP1			0x00
 #define CAN_ID_TEMP2			0x00
 #define CAN_ID_GENERAL			0x00
+#define CAN_ID_PINS				0x00
 #define CAN_ID_PWM				0x00
 #define CAN_CONFIG_RECEIVED		0x01
 #define CAN_DATA_RECEIVED		0x02
-#define CAN_THREAD_TIMEOUT		2
 #define CAN_QUEUE_SIZE			14
 #define OUTPUT_FUSE_FREQ		25
 
+//DATA
+#define DATA_INVALID			0x00
+#define DATA_PROCESSED			0x01
+
 #define NBR_OF_ADC_CHANNELS		10
-#define NBR_OF_DATA_CHANNELS	32
-#define NBR_OF_DATA_MSGS		8
+#define NBR_OF_DATA_CHANNELS	34
+#define NBR_OF_DATA_MSGS		10
 #define NBR_OF_FREQ_OPTS		Data_Freq_Max-1
 #define NBR_OF_INPUTS			16
 #define NBR_OF_OUTPUTS			16
@@ -102,6 +114,10 @@
 #define DATA_FREQ_200HZ	5
 #define DATA_FREQ_250HZ	4
 #define DATA_FREQ_500HZ	2
+
+//TIMEOUTS
+#define CAN_THREAD_TIMEOUT		pdMS_TO_TICKS(2)
+#define PROCESS_THREAD_TIMEOUT	pdMS_TO_TICKS(2)
 
 //DATA CONVERSION CONSTANTS
 //ADC CONSTANTS
@@ -257,6 +273,7 @@ typedef enum{
 	CAN_Msg_Temp1,
 	CAN_Msg_Temp2,
 	CAN_Msg_General,
+	CAN_Msg_Pins,
 	CAN_Msg_PWM
 }PDM_CAN_TxMsgType;
 
@@ -286,21 +303,22 @@ typedef enum{
 
 typedef enum{
 	Data_Curr1 = 0,
-	Data_Curr2,
 	Data_Curr3,
-	Data_Curr4,
 	Data_Curr5,
-	Data_Curr6,
 	Data_Curr7,
-	Data_Curr8,
 	Data_Curr9,
-	Data_Curr10,
 	Data_Curr11,
-	Data_Curr12,
 	Data_Curr13,
-	Data_Curr14,
 	Data_Curr15,
+	Data_Curr2,
+	Data_Curr4,
+	Data_Curr6,
+	Data_Curr8,
+	Data_Curr10,
+	Data_Curr12,
+	Data_Curr14,
 	Data_Curr16,
+	Data_CurrTotal,
 	Data_Temp1,
 	Data_Temp2,
 	Data_Temp3,
@@ -311,6 +329,7 @@ typedef enum{
 	Data_Temp8,
 	Data_TempMCU,
 	Data_Volt,
+	Data_Input,
 	Data_Output,
 	Data_Fuse,
 	Data_PWM1,
@@ -318,6 +337,30 @@ typedef enum{
 	Data_PWM3,
 	Data_PWM4
 }PDM_Data_Channels;
+
+typedef enum{
+	Alignment_Normal,
+	Alignment_Swap
+}PDM_Data_Alignment;
+
+typedef enum{
+	Cast_Uint8,
+	Cast_Int8,
+	Cast_Uint16,
+	Cast_Int16
+}PDM_Data_Cast;
+
+typedef enum{
+	Data_CAN_Channel,
+	Data_CAN_Fixed,
+	Data_Local
+}PDM_Data_Source;
+
+typedef enum{
+	Interrupt_CAN,
+	Interrupt_Gpio,
+	Interrupt_Timer
+}PDM_Interrupt_Source;
 
 typedef enum{
 	Output_GPIO,
@@ -331,26 +374,17 @@ typedef enum{
 }PDM_Output_Enabled;
 
 typedef enum{
-	OutState_Inputs,
-	OutState_CAN,
-	OutState_Current,
-	OutState_Delay
+	OutState_Condition,
+	OutState_Fuse
 }PDM_Output_State;
 
 typedef enum{
 	OutType_Standard 	= 0x00,
-	OutType_Can,
-	OutType_Pwm,
-	OutType_Pwm_Can,
+	OutType_Pwm_Preset,
 	OutType_Pwm_Map,
 	OutType_Pwm_Ann,
 	OutType_Error
 }PDM_Output_Type;
-
-typedef enum{
-	CAN_Channel,
-	CAN_Fixed
-}PDM_CAN_Data_Type;
 
 typedef enum{
 	Data_Keep,
@@ -358,16 +392,20 @@ typedef enum{
 }PDM_CAN_Data_Keep;
 
 typedef enum{
-	Cast_Uint8,
-	Cast_Int8,
-	Cast_Uint16,
-	Cast_Int16
-}PDM_CAN_Data_Cast;
-
-typedef enum{
-	Alignment_Normal,
-	Alignment_Swap
-}PDM_CAN_Data_Alignment;
+	Logic_NOT,
+	Logic_AND,
+	Logic_OR,
+	Logic_XOR,
+	Logic_NAND,
+	Logic_NOR,
+	Logic_XNOR,
+	Logic_Equals,
+	Logic_Differs,
+	Logic_Less,
+	Logic_More,
+	Logic_LessEquals,
+	Logic_MoreEquals
+}PDM_Logic_Operation;
 
 typedef enum{
 	Delay_Disabled,
@@ -406,10 +444,9 @@ typedef enum{
 }PDM_Fuse_Time;
 
 typedef enum{
-	Fuse_Disabled,
 	Fuse_Closed,
 	Fuse_Wait,
-	Fuse_Open,
+	Fuse_Open
 }PDM_Fuse_Status;
 
 typedef enum{
@@ -433,47 +470,42 @@ typedef union{
 
 /*BEGIN STRUCT TYPEDEFS*/
 typedef struct{
-	CAN_HandleTypeDef* hcan;
-	PDM_CAN_BaudRate baudRate;
+	CAN_HandleTypeDef* hcan;	//CAN peripheral handle pointer
+	PDM_CAN_BaudRate baudRate;	//CAN bus speed
 
 	//Bus filtering
-	uint16_t enabledFilters;
-	uint32_t filters[CAN_NBR_OF_FILTERS];
-
-	//Data channels
-	uint8_t nbrOfDataChannels;
-	PDM_CAN_Data_Struct* dataChannels;
+	uint16_t enabledFilters;				//Indicate which filters from the bank should be used
+	uint32_t filters[CAN_NBR_OF_FILTERS];	//Filters to be used for data reception
 }PDM_CAN_Config_Struct;
 
 typedef struct{
-	//General info
-	int32_t data;			//Variable used for processing
-	uint16_t defaultVal;	//Value cast into variable if timeout is reached
-	uint16_t mask;			//& mask for unsigned data
-	PDM_CAN_Data_Alignment alignment;	//Byte alignment for 16 bit data
-	PDM_CAN_Data_Cast cast;				//Type of data to be cast into struct variable
-	uint32_t* dataFilter;				//Pointer to filter corresponding to the data's frame
+	int32_t data;	//Channel value used for condition calculation
 
+	//Data filtering and conversion
+	uint8_t dataFilterNbr;	//Indicate which filter from local filters or CAN filter bank is used
+	uint32_t* dataFilter;	//Pointer to filter corresponding to the data's frame
+	uint16_t position;		//Data field byte offset for Local and Fixed CAN data or CAN data channel ID
+	PDM_Data_Source source;	//Specify if data is read locally or is received via CAN bus
+
+	//Byte alignment, masking and casting
+	uint16_t mask;					//AND mask for unsigned data
+	PDM_Data_Alignment alignment;	//Byte alignment for 16 bit data, will always be normal for local data
+	PDM_Data_Cast cast;				//Type of data to be cast into struct variable
+
+	//Timeout info for CAN data
+	uint16_t defaultVal;				//Value cast into variable if timeout is reached
 	uint8_t timeout;					//Timeout in milliseconds/100
 	osTimerId_t timer;					//Timer for timeout processing
 	PDM_CAN_Data_Timeout timeoutFlag;	//Indicates if data was timed out
 	PDM_CAN_Data_Keep keep;				//Indicate if data should be kept as last value if timeout happens
-
-	PDM_CAN_Data_Type type;	//Indicate data in fixed frame or identification in data field
-
-	//Data in fixed position data frames
-	uint8_t offset;		//Data field byte offset
-
-	//Data in frames that contain data identification in data field
-	uint16_t channel;	//Identification for data channel
-}PDM_CAN_Data_Struct;
+}PDM_Data_Channel_Struct;
 
 typedef struct{
-	uint8_t rxData[8];
-	uint8_t canIde;
-	uint8_t canDlc;
-	uint32_t canId;
-}PDM_CAN_Rx_Struct;
+	uint8_t data[8];		//Data from data frame
+	uint8_t length;			//Number of data bytes
+	uint32_t id;			//Frame unique identification
+	PDM_Data_Source source;	//Indication if frame is from local readings or CAN bus
+}PDM_Data_Queue_Struct;
 
 typedef struct{
 	uint16_t dutyCycles;
@@ -526,41 +558,31 @@ typedef struct{
 }PDM_PWM_Ctrl_Struct;
 
 typedef struct{
-	uint16_t delay[NBR_OF_DELAY_TIMES];	//PDM_Delay_Time
-	osTimerId_t delayTimer;
-	PDM_Delay_Type delayType;
-	PDM_Pulse_Flag pulseFlag;
-}PDM_Output_Delay_Struct;
-
-typedef struct{
-	uint8_t fuseRetry;	//Maximum number of closing attempts
-	uint8_t fuseRetryCount;	//Number of times attempted to close the fuse
-	int16_t fuseCurrent;	//Maximum current for fuse opening
+	uint8_t retry;		//Maximum number of closing attempts
+	uint8_t retryCount;	//Number of times attempted to close the fuse
+	int16_t maxCurrent;	//Maximum current for fuse opening
 
 	//Maximum overcurrent
-	uint16_t fuseTimeout[3];	//PDM_Fuse_Time
-	PDM_Fuse_Status fuseStatus;
+	uint16_t timeout[3];	//PDM_Fuse_Time
+	PDM_Fuse_Status status;
+	osTimerId_t osTimer;
 	osSemaphoreId_t* outSemaphore;	//Semaphore handle for output process Thread
 }PDM_Output_Fuse_Struct;
 
 typedef struct{
 	//Output activation
-	GPIO_PinState outputState[4];	//PDM_Output_State
-	uint16_t inputEnable[2];
-	uint16_t inputLevels[2];
-	PDM_Output_Enabled outEnable[2];
+	GPIO_PinState outputState[2];	//PDM_Output_State
 	PDM_Output_Type outType;
 	PDM_Fuse_Enabled fuseEnable;
 
-	//Output Info
+	//Output hardware info (loaded using defines)
 	uint16_t outputPin;
 	GPIO_TypeDef* outputGPIO;
 	PDM_Output_Hardware outputHardware;
 
 	//Mixed types of activation
-	PDM_Output_Delay_Struct delayStruct;
-	PDM_Output_Fuse_Struct fuseStruct;
-	PDM_PWM_Ctrl_Struct pwmStruct;
+	PDM_Output_Fuse_Struct* fuseStruct;
+	PDM_PWM_Ctrl_Struct* pwmStruct;
 }PDM_Output_Ctrl_Struct;
 /*END STRUCT TYPEDEFS*/
 
@@ -569,21 +591,36 @@ typedef struct{
 	PDM_CAN_Config_Struct* canConfig;	//Contains CAN handle, data and filter information
 
 	osMessageQueueId_t* cfgQueueHandle;
+	osMessageQueueId_t* chnQueueHandle;
 	osSemaphoreId_t* semaphoreHandle;
 	osSemaphoreId_t* cfgSemaphoreHandle;
-	osSemaphoreId_t* outSemaphoreHandle;
+	osSemaphoreId_t* chnSemaphoreHandle;
 }PDM_CanRxMsg_Thread_Struct;
 
 typedef struct{
-	int16_t* dataBuffer;
+	uint16_t* dataBuffer;
 	uint16_t* dataIdBuffer;
+	Data_Freq dataFreq;
 	Data_Freq* dataFreqBuffer;
 
 	CAN_HandleTypeDef* hcan;
 	PDM_CAN_TxMsgType txMsgType;
 	osMutexId_t* canMutexHandle;
-	osMessageQueueId_t* freqQueueHandle;
+	osMutexId_t* dataMutexHandle;
 }PDM_CanTxMsg_Thread_Struct;
+
+typedef struct{
+	uint8_t nbrOfChannels;
+	PDM_Data_Channel_Struct* channels;
+
+	PDM_Output_Ctrl_Struct* outStruct;
+
+	int16_t* dataBuffer;
+	uint16_t* adcBuffer;
+	TIM_HandleTypeDef* htim;
+	osMessageQueueId_t* intQueueHandle;
+	osMutexId_t* dataMutexHandle;
+}PDM_Process_Thread_Struct;
 
 typedef struct{
 	uint16_t* inputPins;
@@ -597,7 +634,8 @@ typedef struct{
 	int16_t* dataBuffer;
 	uint16_t* adcBuffer;
 	TIM_HandleTypeDef* htim;
-	osSemaphoreId_t* semaphoreHandle;
+	osMessageQueueId_t* queueHandle;
+	osMutexId_t* dataMutexHandle;
 	PDM_Output_Ctrl_Struct* outStruct;
 }PDM_Readings_Thread_Struct;
 
@@ -619,10 +657,11 @@ typedef struct{
 
 /*BEGIN DECLARED VARIABLES*/
 
+//RTOS QUEUES
+extern osMessageQueueId_t processQueueHandle;
+
 //RTOS SEMAPHORES
-extern osSemaphoreId_t canRxSemaphore;
-extern osSemaphoreId_t outputSemaphore;
-extern osSemaphoreId_t readingSemaphore;
+extern osSemaphoreId_t canRxSemaphoreHandle;
 
 //CONFIGURATION
 extern uint8_t usbConnectedFlag;

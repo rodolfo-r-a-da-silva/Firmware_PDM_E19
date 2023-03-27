@@ -29,12 +29,12 @@ void PDM_Config_Thread(void* ThreadStruct)
 
 	//Queue IDs
 	osMessageQueueId_t canRxQueueId;
-	osMessageQueueId_t canTxFreqQueueId;
+	osMessageQueueId_t dataQueueId[NBR_OF_FREQ_OPTS+NBR_OF_DATA_MSGS];
 	osMessageQueueId_t usbQueueId;
 
 	//Queue Attributes
 	osMessageQueueAttr_t canRxQueueAttr = {.name = "canRxQueue"};
-	osMessageQueueAttr_t canTxFreqQueueAttr = {.name = "canTxFreqQueue"};
+	osMessageQueueAttr_t dataQueueAttr[NBR_OF_FREQ_OPTS+NBR_OF_DATA_MSGS];
 	osMessageQueueAttr_t usbQueueAttr = {.name = "usbQueue"};
 
 	//Semaphore Attributes
@@ -65,10 +65,9 @@ void PDM_Config_Thread(void* ThreadStruct)
 	PDM_Readings_Thread_Struct readStruct;
 	PDM_UsbTxMsg_Thread_Struct usbTxStruct;
 
-	//Variables and arrays for data and parameters storage
+	//Variables and arrays for data parameters storage
 	uint16_t adcBuffer[NBR_OF_ADC_CHANNELS];
 
-	int16_t dataBuffer[NBR_OF_DATA_CHANNELS];
 	uint16_t dataIdBuffer[NBR_OF_DATA_CHANNELS];
 	Data_Freq dataFreqBuffer[NBR_OF_DATA_CHANNELS+NBR_OF_DATA_MSGS];
 

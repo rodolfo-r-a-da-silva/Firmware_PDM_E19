@@ -7,6 +7,11 @@
 
 #include "pdm.h"
 
+/*BEGIN GLOBAL VARIABLES*/
+uint8_t usbConnectedFlag;
+uint8_t usbVcpParameters[7];
+/*END GLOBAL VARIABLES*/
+
 void PDM_USB_Thread_Transmit_Data(void* threadStruct)
 {
 	//Struct containing USB peripheral and frequency Queue handle

@@ -9,14 +9,17 @@
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-	osSemaphoreRelease(canRxSemaphore);	//Release semaphore to PDM_CAN_Thread_Receive_Data Thread
+	osSemaphoreRelease(canRxSemaphoreHandle);	//Release semaphore to PDM_CAN_Thread_Receive_Data Thread
 
 	return;
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	osSemaphoreRelease(outputSemaphore);	//Release semaphore to PDM_Output_Thread
+	PDM_Data_Queue_Struct data = {.source = Interrupt_Gpio};
+
+	//Send interrupt source to Readings Thread
+	osMessageQueuePut(processQueueHandle, (void*) &data, 0, 0);
 
 	return;
 }

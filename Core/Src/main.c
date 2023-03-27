@@ -69,6 +69,16 @@ const osThreadAttr_t setupTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for processQueue */
+osMessageQueueId_t processQueueHandle;
+const osMessageQueueAttr_t processQueue_attributes = {
+  .name = "processQueue"
+};
+/* Definitions for canRxSemaphore */
+osSemaphoreId_t canRxSemaphoreHandle;
+const osSemaphoreAttr_t canRxSemaphore_attributes = {
+  .name = "canRxSemaphore"
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -143,34 +153,45 @@ int main(void)
 
   /* Init scheduler */
   osKernelInitialize();
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2022 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-/**
-* @}
-*/
-/**
-* @}
-*/
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* creation of canRxSemaphore */
+  canRxSemaphoreHandle = osSemaphoreNew(1, 1, &canRxSemaphore_attributes);
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* creation of processQueue */
+  processQueueHandle = osMessageQueueNew (5, sizeof(PDM_Data_Queue_Struct), &processQueue_attributes);
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of setupTask */
+  setupTaskHandle = osThreadNew(StartSetupTask, NULL, &setupTask_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
   osKernelStart();
-
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -854,6 +875,8 @@ static void MX_DMA_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
+/* USER CODE BEGIN MX_GPIO_Init_1 */
+/* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
@@ -939,6 +962,8 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
+/* USER CODE BEGIN MX_GPIO_Init_2 */
+/* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -977,14 +1002,17 @@ void StartSetupTask(void *argument)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-
+	PDM_Data_Queue_Struct data = {.source = Interrupt_Gpio};
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM9) {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
   if (htim->Instance == TIM6)
-	  osSemaphoreRelease(readingSemaphore);
+  {
+	  HAL_TIM_Base_Stop_IT(htim);
+	  osMessageQueuePut(processQueueHandle, (void*) &data, 0, 0);
+  }
   /* USER CODE END Callback 1 */
 }
 
