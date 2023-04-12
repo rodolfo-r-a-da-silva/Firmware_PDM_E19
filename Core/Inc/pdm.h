@@ -75,6 +75,29 @@
 #define CAN_QUEUE_SIZE			14
 #define OUTPUT_FUSE_FREQ		25
 
+//CHANNELS AND FUNCTIONS
+#define NBR_OF_ANALOG_CHANNELS	27
+#define CHANNEL_ANALOG_OFFSET	0
+#define CHANNEL_ANALOG_FINISH	CHANNEL_ANALOG_OFFSET+NBR_OF_ANALOG_CHANNELS
+#define CHANNEL_CAN_OFFSET		CHANNEL_ANALOG_FINISH
+
+#define NBR_OF_INPUT_FUNCTIONS	NBR_OF_INPUTS
+#define FUNCTION_INPUT_OFFSET	0
+#define FUNCTION_INPUT_FINISH	FUNCTION_INPUT_OFFSET+NBR_OF_INPUT_FUNCTIONS
+#define FUNCTION_NORMAL_OFFSET	FUNCTION_INPUT_FINISH
+
+#define NBR_OF_FUNC_TIMES	2
+
+#define IN_USE_NONE			0x00
+#define IN_USE_FUNCTION		0x01
+#define IN_USE_OUTPUT		0x02
+#define IN_USE_PWM			0x04
+
+#define PROCESS_NONE		IN_USE_NONE
+#define PROCESS_FUNCTION	IN_USE_FUNCTION
+#define PROCESS_OUTPUT		IN_USE_OUTPUT
+#define PROCESS_PWM			IN_USE_PWM
+
 //DATA
 #define DATA_INVALID			0x00
 #define DATA_PROCESSED			0x01
@@ -237,9 +260,6 @@
 		if(__HTIM__->Instance == TIM6)					\
 			osSemaphoreRelease(__HSEMAPHORE__);
 
-#define __PDM_INPUT_CONDITION_COMPARE(__ENABLED_INPUTS__, __INPUT_LEVELS__, __OUTPUT_ENABLE__)	\
-		(((inputLevels & (__ENABLED_INPUTS__)) == ((__INPUT_LEVELS__) & (__ENABLED_INPUTS__))) && ((__OUTPUT_ENABLE__) == Output_Enabled))
-
 #define __PDM_LINEAR_INTERPOLATION(__X__, __X0__, __X1__, __Y0__, __Y1__)						\
 		(((((__X__) - (__X0__)) * ((__Y1__) - (__Y0__))) / ((__X1__) - (__X0__))) + (__Y0__))
 
@@ -351,9 +371,10 @@ typedef enum{
 }PDM_Data_Cast;
 
 typedef enum{
+	Data_ADC,
 	Data_CAN_Channel,
 	Data_CAN_Fixed,
-	Data_Local
+	Data_Input_Pins
 }PDM_Data_Source;
 
 typedef enum{
@@ -392,45 +413,54 @@ typedef enum{
 }PDM_CAN_Data_Keep;
 
 typedef enum{
-	Logic_NOT,
-	Logic_AND,
-	Logic_OR,
-	Logic_XOR,
-	Logic_NAND,
-	Logic_NOR,
-	Logic_XNOR,
-	Logic_Equals,
-	Logic_Differs,
-	Logic_Less,
-	Logic_More,
-	Logic_LessEquals,
-	Logic_MoreEquals
-}PDM_Logic_Operation;
+	Time_False,
+	Time_True
+}PDM_Function_Time;
 
 typedef enum{
-	Delay_Disabled,
-	Delay_Enabled
-}PDM_Delay_Enabled;
+	Result_False,
+	Result_True
+}PDM_Function_Result;
 
 typedef enum{
-	Delay_Turn_On,
-	Delay_Turn_Off,
-	Delay_Blink_On,
-	Delay_Blink_Off,
-	Delay_Pulse_On
-}PDM_Delay_Time;
+	Edge_None,
+	Edge_Falling,
+	Edge_Rising,
+	Edge_Both
+}PDM_Function_Edge;
 
 typedef enum{
-	Delay_Standard,
-	Delay_Blink,
-	Delay_Pulse
-}PDM_Delay_Type;
+	Result_Current,
+	Result_Next,
+	Result_Previous
+}PDM_Function_Result;
 
 typedef enum{
-	Pulse_Wait,
-	Pulse_Started,
-	Pulse_Completed
-}PDM_Pulse_Flag;
+	Function_Disabled,
+	Function_NOT,
+	Function_AND,
+	Function_OR,
+	Function_XOR,
+	Function_Equals,
+	Function_Differs,
+	Function_Less,
+	Function_More,
+	Function_LessEquals,
+	Function_MoreEquals,
+	Function_Hysteresis,
+	Function_Blink,
+	Function_Pulse,
+	Function_SetReset,
+	Function_Toggle,
+	Function_Counter,
+	Function_FuseReset
+}PDM_Function_Type;
+
+typedef enum{
+	FuncIn_Channel,
+	FuncIn_Const,
+	FuncIN_Funct
+}PDM_Function_Input;
 
 typedef enum{
 	Fuse_Disabled,
@@ -450,15 +480,15 @@ typedef enum{
 }PDM_Fuse_Status;
 
 typedef enum{
+	SoftStart_Disabled,
+	SoftStart_Enabled
+}PDM_SoftStart_Enabled;
+
+typedef enum{
 	ANN_In_Can,
 	ANN_In_Neuron,
 	ANN_In_Local
 }PDM_ANN_InType;
-
-typedef enum{
-	SoftStart_Disabled,
-	SoftStart_Enabled
-}PDM_SoftStart_Enabled;
 /*END ENUMS TYPEDEFS*/
 
 /*BEGIN UNION TYPEDEFS*/
@@ -483,14 +513,16 @@ typedef struct{
 
 	//Data filtering and conversion
 	uint8_t dataFilterNbr;	//Indicate which filter from local filters or CAN filter bank is used
-	uint32_t* dataFilter;	//Pointer to filter corresponding to the data's frame
-	uint16_t position;		//Data field byte offset for Local and Fixed CAN data or CAN data channel ID
-	PDM_Data_Source source;	//Specify if data is read locally or is received via CAN bus
+	uint32_t dataFilter;	//Filter corresponding to the data's frame
+	uint16_t position;		//Data field byte offset for Local and Fixed CAN data or CAN/Local data channel ID
+	PDM_Data_Source source;	//Specify if data is read from ADC, Inputs or is received via CAN bus
 
 	//Byte alignment, masking and casting
 	uint16_t mask;					//AND mask for unsigned data
 	PDM_Data_Alignment alignment;	//Byte alignment for 16 bit data, will always be normal for local data
 	PDM_Data_Cast cast;				//Type of data to be cast into struct variable
+
+	uint8_t inUse;	//Indicate if channel is used by functions or PWM outputs
 
 	//Timeout info for CAN data
 	uint16_t defaultVal;				//Value cast into variable if timeout is reached
@@ -501,6 +533,26 @@ typedef struct{
 }PDM_Data_Channel_Struct;
 
 typedef struct{
+	//Output result
+	int32_t result[3];	//Indicate next, current and previous function output state
+	uint8_t inUse;		//Indicate if function is used by other Functions or Outputs
+
+	//Input configuration
+	int32_t** inputs;				//Array of pointers to each function result used as inputs
+	PDM_Function_Edge** inEdge;		//Array of pointers to each function result edge (as of rising, falling or none)
+	uint8_t nbrOfInputs;			//Amount of used inputs
+	uint16_t* inputNbr;				//Array indicating the position of input in it's array or constant value
+	PDM_Function_Edge* inEdgetype;	//Array indicating which edge the inputs must be to cause a change of state
+	PDM_Data_Cast* constCast;		//Indicate which type of variable a constant should be cast to
+	PDM_Function_Input* inputTypes;	//Array storing each input type
+
+	//Function configuration
+	uint16_t funcDelay[NBR_OF_FUNC_TIMES];	//Delays for result to change states or time for result state (Blink/Pulse)
+	osTimerId_t funcTimer;					//Timer for change of result delay
+	PDM_Function_Type type;					//Indicate which type of operation the function performs
+}PDM_Function_Struct;
+
+typedef struct{
 	uint8_t data[8];		//Data from data frame
 	uint8_t length;			//Number of data bytes
 	uint32_t id;			//Frame unique identification
@@ -508,10 +560,10 @@ typedef struct{
 }PDM_Data_Queue_Struct;
 
 typedef struct{
-	uint16_t dutyCycles;
-	uint16_t turnOnTime;
-	uint16_t* dutyCycleBuffer;
-	uint32_t slope;
+	uint16_t dutyCycles;		//Amount of duty cycles to get from 0 to 100%
+	uint16_t turnOnTime;		//Time (ms) it takes to get from 0 to 100%
+	uint16_t* dutyCycleBuffer;	//Buffer to feed DMA channel with duty cycle values
+	uint32_t slope;				//Slope to calculate dutyCycleBuffer
 }PDM_PWM_SoftStart_Struct;
 
 typedef struct{
@@ -584,6 +636,11 @@ typedef struct{
 	PDM_Output_Fuse_Struct* fuseStruct;
 	PDM_PWM_Ctrl_Struct* pwmStruct;
 }PDM_Output_Ctrl_Struct;
+
+typedef struct{
+	uint16_t pin[NBR_OF_INPUTS];
+	GPIO_TypeDef gpio[NBR_OF_INPUTS];
+}PDM_Input_Struct;
 /*END STRUCT TYPEDEFS*/
 
 /*START THREAD STRUCT TYPEDEFS*/
@@ -612,8 +669,10 @@ typedef struct{
 typedef struct{
 	uint8_t nbrOfChannels;
 	PDM_Data_Channel_Struct* channels;
+	PDM_Function_Struct* functions;
 
 	PDM_Output_Ctrl_Struct* outStruct;
+	PDM_Input_Struct* inStruct;
 
 	int16_t* dataBuffer;
 	uint16_t* adcBuffer;
