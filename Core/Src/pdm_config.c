@@ -229,108 +229,103 @@ __weak void PDM_Hard_Code_Config()
 {
 	//Output 1 - Bomba de Combustível
 	outputStruct[0].outEnable[0] = Output_Enabled;
-	outputStruct[0].inputEnable[0] = 0x0011;
+	outputStruct[0].inputEnable[0] = 0x0021;
 	outputStruct[0].inputLevels[0] = 0x0000;
 	pwmOutStruct[0].pwmFrequency = PWM_FREQ_10000HZ;
 	pwmOutStruct[0].outputType = OutType_Preset;
-	pwmOutStruct[0].presetEnable[0] = 0x0011;
+	pwmOutStruct[0].presetEnable[0] = 0x0021;
 	pwmOutStruct[0].presetInputs[0] = 0x0000;
 	pwmOutStruct[0].presetDutyCycle[0] = 1000;
 
 	//Output 2 - Ventoinha Esquerda
 	outputStruct[1].outEnable[0] = Output_Enabled;
-	outputStruct[1].inputEnable[0] = 0x001E;
-	outputStruct[1].inputLevels[0] = 0x0002;
+	outputStruct[1].inputEnable[0] = 0x0024;
+	outputStruct[1].inputLevels[0] = 0x0000;
 	pwmOutStruct[1].pwmFrequency = PWM_FREQ_10000HZ;
 	pwmOutStruct[1].outputType = OutType_Preset;
-	pwmOutStruct[1].presetEnable[0] = 0x001E;
-	pwmOutStruct[1].presetInputs[0] = 0x0002;
+	pwmOutStruct[1].presetEnable[0] = 0x0024;
+	pwmOutStruct[1].presetInputs[0] = 0x0000;
 	pwmOutStruct[1].presetDutyCycle[0] = 1000;
 
 	//Output 3 - Ventoinha Direita
 	outputStruct[2].outEnable[0] = Output_Enabled;
-	outputStruct[2].inputEnable[0] = 0x001E;
-	outputStruct[2].inputLevels[0] = 0x0002;
+	outputStruct[2].inputEnable[0] = 0x0024;
+	outputStruct[2].inputLevels[0] = 0x0000;
 	pwmOutStruct[2].pwmFrequency = PWM_FREQ_10000HZ;
 	pwmOutStruct[2].outputType = OutType_Preset;
-	pwmOutStruct[2].presetEnable[0] = 0x001E;
-	pwmOutStruct[2].presetInputs[0] = 0x0002;
+	pwmOutStruct[2].presetEnable[0] = 0x0024;
+	pwmOutStruct[2].presetInputs[0] = 0x0000;
 	pwmOutStruct[2].presetDutyCycle[0] = 1000;
 
-	//Output 4 - Ventoinha de Óleo -> FT
-//	outputStruct[3].outEnable[0] = Output_Enabled;
-//	outputStruct[3].inputEnable[0] = 0x001E;
-//	outputStruct[3].inputLevels[0] = 0x0002;
-//	pwmOutStruct[3].pwmFrequency = PWM_FREQ_10000HZ;
-//	pwmOutStruct[3].outputType = OutType_Preset;
-//	pwmOutStruct[3].presetEnable[0] = 0x001E;
-//	pwmOutStruct[3].presetInputs[0] = 0x0002;
-//	pwmOutStruct[3].presetDutyCycle[0] = 1000;
+	//Output 4 - Fueltech
 	outputStruct[3].outEnable[0] = Output_Enabled;
-	outputStruct[3].inputEnable[0] = 0x0010;
+	outputStruct[3].inputEnable[0] = 0x0020;
 	outputStruct[3].inputLevels[0] = 0x0000;
+	pwmOutStruct[3].pwmFrequency = PWM_FREQ_10000HZ;
+	pwmOutStruct[3].outputType = OutType_Preset;
+	pwmOutStruct[3].presetEnable[0] = 0x0020;
+	pwmOutStruct[3].presetInputs[0] = 0x0000;
+	pwmOutStruct[3].presetDutyCycle[0] = 1000;
 
-	//Output 5 - FT -> desabilitada
-//	outputStruct[4].outEnable[0] = Output_Enabled;
-	outputStruct[4].outEnable[0] = Output_Disabled;
-	outputStruct[4].inputEnable[0] = 0x0010;
+	//Output 5 - WBO2
+	outputStruct[4].outEnable[0] = Output_Enabled;
+	outputStruct[4].inputEnable[0] = 0x0021;
 	outputStruct[4].inputLevels[0] = 0x0000;
 
-	//Output 6 - Velocidade de Roda FL e FR
-//	outputStruct[5].outEnable[0] = Output_Enabled;
-	outputStruct[5].outEnable[0] = Output_Disabled;
-	outputStruct[5].inputEnable[0] = 0x0018;
+	//Output 6 - CMP e Pressão de Combustível
+	outputStruct[5].outEnable[0] = Output_Enabled;
+	outputStruct[5].inputEnable[0] = 0x0020;
 	outputStruct[5].inputLevels[0] = 0x0000;
 
-	//Output 7 - Velocidade de Roda RL e RR
+	//Output 7 - Pressão de Óleo e Pressão do Shifter
 	outputStruct[6].outEnable[0] = Output_Enabled;
-	outputStruct[6].inputEnable[0] = 0x0018;
+	outputStruct[6].inputEnable[0] = 0x0020;
 	outputStruct[6].inputLevels[0] = 0x0000;
 
-	//Output 8 - Buck DRS
+	//Output 8 - Relay de Partida
 	outputStruct[7].outEnable[0] = Output_Enabled;
-	outputStruct[7].inputEnable[0] = 0x0008;
+	outputStruct[7].inputEnable[0] = 0x0028;
 	outputStruct[7].inputLevels[0] = 0x0000;
 
-	//Output 9 - ETM e CMP
+	//Output 9 - Brake Light
 	outputStruct[8].outEnable[0] = Output_Enabled;
-	outputStruct[8].inputEnable[0] = 0x0010;
+	outputStruct[8].inputEnable[0] = 0x0000;
 	outputStruct[8].inputLevels[0] = 0x0000;
 
-	//Output 10 - P. de Óleo e P. do Shifter
+	//Output 10 - Solenóides
 	outputStruct[9].outEnable[0] = Output_Enabled;
-	outputStruct[9].inputEnable[0] = 0x0010;
+	outputStruct[9].inputEnable[0] = 0x0020;
 	outputStruct[9].inputLevels[0] = 0x0000;
 
-	//Output 11 - Solenoides e P. de Combustível
+	//Output 11 - Veloc. Roda F
 	outputStruct[10].outEnable[0] = Output_Enabled;
-	outputStruct[10].inputEnable[0] = 0x0010;
+	outputStruct[10].inputEnable[0] = 0x0020;
 	outputStruct[10].inputLevels[0] = 0x0000;
 
-	//Output 12 - Relay de Partida
+	//Output 12 - Veloc. Roda R
 	outputStruct[11].outEnable[0] = Output_Enabled;
-	outputStruct[11].inputEnable[0] = 0;//0x001A;
-	outputStruct[11].inputLevels[0] = 0;//0x0008;
+	outputStruct[11].inputEnable[0] = 0x0020;
+	outputStruct[11].inputLevels[0] = 0x0000;
 
-	//Output 13 - Buck DAq e Brake Light
+	//Output 13 - Bobina
 	outputStruct[12].outEnable[0] = Output_Enabled;
-	outputStruct[12].inputEnable[0] = 0x0008;
+	outputStruct[12].inputEnable[0] = 0x0020;
 	outputStruct[12].inputLevels[0] = 0x0000;
 
-	//Output 14 - Bobina
+	//Output 14 - Bico Injetor
 	outputStruct[13].outEnable[0] = Output_Enabled;
-	outputStruct[13].inputEnable[0] = 0x0010;
+	outputStruct[13].inputEnable[0] = 0x0020;
 	outputStruct[13].inputLevels[0] = 0x0000;
 
-	//Output 15 - Bico Injetor
+	//Output 15 - Buck DRS
 	outputStruct[14].outEnable[0] = Output_Enabled;
-	outputStruct[14].inputEnable[0] = 0x0010;
-	outputStruct[14].inputLevels[0] = 0x0000;
+	outputStruct[14].inputEnable[0] = 0x0021;
+	outputStruct[14].inputLevels[0] = 0x0001;
 
-	//Output 16 - WBO2
+	//Output 16 - Buck DAQ
 	outputStruct[15].outEnable[0] = Output_Enabled;
-	outputStruct[15].inputEnable[0] = 0x0010;
-	outputStruct[15].inputLevels[0] = 0x0000;
+	outputStruct[15].inputEnable[0] = 0x0021;
+	outputStruct[15].inputLevels[0] = 0x0001;
 
 	canConfig.baudRate = CAN_1000kbps;
 
