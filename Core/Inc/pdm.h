@@ -22,6 +22,8 @@
 #define RTOS_QUEUE_CANCHN_COUNT		5
 #define RTOS_QUEUE_CANTXFREQ_SIZE	1
 #define RTOS_QUEUE_CANTXFREQ_COUNT	1
+#define RTOS_QUEUE_OUT_SIZE			sizeof(uint8_t)
+#define RTOS_QUEUE_OUT_COUNT		5
 #define RTOS_QUEUE_USB_SIZE			34
 #define RTOS_QUEUE_USB_COUNT		1
 
@@ -32,8 +34,6 @@
 #define RTOS_SEMAPHORE_CANCHN_INIT	0
 #define RTOS_SEMAPHORE_CANRX_MAX	1
 #define RTOS_SEMAPHORE_CANRX_INIT	0
-#define RTOS_SEMAPHORE_OUT_MAX		5
-#define RTOS_SEMAPHORE_OUT_INIT		1
 #define RTOS_SEMAPHORE_READ_MAX		1
 #define RTOS_SEMAPHORE_READ_INIT	1
 
@@ -80,13 +80,21 @@
 #define CHANNEL_ANALOG_OFFSET	0
 #define CHANNEL_ANALOG_FINISH	CHANNEL_ANALOG_OFFSET+NBR_OF_ANALOG_CHANNELS
 #define CHANNEL_CAN_OFFSET		CHANNEL_ANALOG_FINISH
+#define CHANNEL_TEMP_MCU		CHANNEL_ANALOG_OFFSET+Data_TempMCU
 
 #define NBR_OF_INPUT_FUNCTIONS	NBR_OF_INPUTS
 #define FUNCTION_INPUT_OFFSET	0
 #define FUNCTION_INPUT_FINISH	FUNCTION_INPUT_OFFSET+NBR_OF_INPUT_FUNCTIONS
-#define FUNCTION_NORMAL_OFFSET	FUNCTION_INPUT_FINISH
+#define FUNCTION_FUSE_OFFSET	FUNCTION_INPUT_FINISH
+#define FUNCTION_FUSE_FINISH	FUNCTION_FUSE_OFFSET+NBR_OF_OUTPUTS
+#define FUNCTION_CUSTOM_OFFSET	FUNCTION_FUSE_FINISH
+
+#define NBR_OF_DATA_RESULTS	2
 
 #define NBR_OF_FUNC_TIMES	2
+#define NBR_OF_FUNC_CONSTS	6
+#define NBR_OF_FUNC_INPUTS	4
+#define NBR_OF_FUNC_RESULTS	3
 
 #define IN_USE_NONE			0x00
 #define IN_USE_FUNCTION		0x01
@@ -97,11 +105,9 @@
 #define PROCESS_FUNCTION	IN_USE_FUNCTION
 #define PROCESS_OUTPUT		IN_USE_OUTPUT
 #define PROCESS_PWM			IN_USE_PWM
+#define PROCESS_FUSE		0x08
 
 //DATA
-#define DATA_INVALID			0x00
-#define DATA_PROCESSED			0x01
-
 #define NBR_OF_ADC_CHANNELS		10
 #define NBR_OF_DATA_CHANNELS	34
 #define NBR_OF_DATA_MSGS		10
@@ -111,18 +117,25 @@
 #define NBR_OF_PWM_OUTPUTS		4
 #define NBR_OF_DELAY_TIMES		5
 
-#define PWM_FREQ_100HZ			899
-#define PWM_FREQ_250HZ			359
-#define PWM_FREQ_500HZ			179
-#define PWM_FREQ_750HZ			119
-#define PWM_FREQ_1000HZ			89
-#define PWM_FREQ_2500HZ			35
-#define PWM_FREQ_5000HZ			17
-#define PWM_FREQ_7500HZ			11
-#define PWM_FREQ_10000HZ		8
-#define PWM_FREQ_15000HZ		5
+//PWM OUTPUTS
+#define PWM_FREQ_100HZ		899
+#define PWM_FREQ_250HZ		359
+#define PWM_FREQ_500HZ		179
+#define PWM_FREQ_750HZ		119
+#define PWM_FREQ_1000HZ		89
+#define PWM_FREQ_2500HZ		35
+#define PWM_FREQ_5000HZ		17
+#define PWM_FREQ_7500HZ		11
+#define PWM_FREQ_10000HZ	8
+#define PWM_FREQ_15000HZ	5
 
-#define PWM_TABLE_MAX_SIZE		32
+#define PWM_MIN_DUTY_CYCLE	0
+#define PWM_MAX_DUTY_CYCLE	1000
+#define PWM_NBR_OF_PRESETS	4
+#define PWM_TABLE_MAX_SIZE	16
+
+//FUSES
+#define FUSE_RETRY_INF	255
 
 //FREQUENCIES
 #define DATA_DISABLED	0
@@ -260,6 +273,11 @@
 		if(__HTIM__->Instance == TIM6)					\
 			osSemaphoreRelease(__HSEMAPHORE__);
 
+#define __PDM_FUNCTION_EDGE_CONDITION(__FUNC_STRUCT__, __INPUT__)														\
+		(((__FUNC_STRUCT__)->inEdge == Edge_Both)																		\
+			|| (((__FUNC_STRUCT__)->inEdge == Edge_Falling) && (*(__FUNC_STRUCT__)->inputs[__INPUT__] == Result_Low))	\
+			|| (((__FUNC_STRUCT__)->inEdge == Edge_Rising) && (*(__FUNC_STRUCT__)->inputs[__INPUT__] == Result_High)))
+
 #define __PDM_LINEAR_INTERPOLATION(__X__, __X0__, __X1__, __Y0__, __Y1__)						\
 		(((((__X__) - (__X0__)) * ((__Y1__) - (__Y0__))) / ((__X1__) - (__X0__))) + (__Y0__))
 
@@ -267,6 +285,16 @@
 		__PDM_LINEAR_INTERPOLATION((__Y__), (__Y0__), (__Y1__),															\
 				(__PDM_LINEAR_INTERPOLATION((__X__), (__X0__), (__X1__), (__Z00__), (__Z01__))),						\
 				(__PDM_LINEAR_INTERPOLATION((__X__), (__X0__), (__X1__), (__Z10__), (__Z11__))))
+
+#define __PDM_OUT_SET_LEVEL(__OUT_STRUCT__)				\
+		HAL_GPIO_WritePin((__OUT_STRUCT__)->outputGPIO,	\
+		(__OUT_STRUCT__)->outputPin,					\
+		(__OUT_STRUCT__)->outputState)
+
+#define __PDM_PWM_SET_COMPARE(__OUT_STRUCT__)						\
+		__HAL_TIM_SET_COMPARE((__OUT_STRUCT__)->pwmStruct->htim,	\
+		(__OUT_STRUCT__)->pwmStruct->timChannel,					\
+		(__OUT_STRUCT__)->pwmStruct->dutyCycle)
 
 /*END MACROS*/
 
@@ -379,6 +407,8 @@ typedef enum{
 
 typedef enum{
 	Interrupt_CAN,
+	Interrupt_Function,
+	Interrupt_Fuse,
 	Interrupt_Gpio,
 	Interrupt_Timer
 }PDM_Interrupt_Source;
@@ -395,22 +425,28 @@ typedef enum{
 }PDM_Output_Enabled;
 
 typedef enum{
-	OutState_Condition,
-	OutState_Fuse
-}PDM_Output_State;
-
-typedef enum{
-	OutType_Standard 	= 0x00,
+	OutType_Error,
+	OutType_Standard,
 	OutType_Pwm_Preset,
 	OutType_Pwm_Map,
-	OutType_Pwm_Ann,
-	OutType_Error
-}PDM_Output_Type;
+	OutType_Pwm_Ann
+}PDM_PWM_Output_Type;
+
+typedef enum{
+	Input_Channel,
+	Input_Const,
+	Input_Function
+}PDM_Input_Type;
 
 typedef enum{
 	Data_Keep,
 	Data_Reset
 }PDM_CAN_Data_Keep;
+
+typedef enum{
+	Data_Current,
+	Data_Previous
+}PDM_Channel_DataTime;
 
 typedef enum{
 	Time_False,
@@ -433,7 +469,7 @@ typedef enum{
 	Result_Current,
 	Result_Next,
 	Result_Previous
-}PDM_Function_Result;
+}PDM_Function_ResultTime;
 
 typedef enum{
 	Function_Disabled,
@@ -441,26 +477,37 @@ typedef enum{
 	Function_AND,
 	Function_OR,
 	Function_XOR,
+	Function_BitAND,
 	Function_Equals,
-	Function_Differs,
 	Function_Less,
 	Function_More,
-	Function_LessEquals,
-	Function_MoreEquals,
 	Function_Hysteresis,
 	Function_Blink,
 	Function_Pulse,
 	Function_SetReset,
 	Function_Toggle,
-	Function_Counter,
-	Function_FuseReset
+	Function_Counter
 }PDM_Function_Type;
 
 typedef enum{
-	FuncIn_Channel,
-	FuncIn_Const,
-	FuncIN_Funct
-}PDM_Function_Input;
+	FuncIn_Current1,
+	FuncIn_Previous1,
+	FuncIn_Current2,
+	FuncIn_Previous2,
+	FuncIn_Current3,
+	FuncIn_Previous3,
+	FuncIn_Current4,
+	FuncIn_Previous4
+}PDM_Function_InputChange;
+
+typedef enum{
+	FuncConst_Low,
+	FuncConst_High,
+	FuncConst_Ovrr1,
+	FuncConst_Ovrr2,
+	FuncConst_Dec,
+	FuncConst_Inc
+}PDM_Function_Const;
 
 typedef enum{
 	Fuse_Disabled,
@@ -509,7 +556,7 @@ typedef struct{
 }PDM_CAN_Config_Struct;
 
 typedef struct{
-	int32_t data;	//Channel value used for condition calculation
+	int32_t data[NBR_OF_DATA_RESULTS];	//Channel value used for condition calculation
 
 	//Data filtering and conversion
 	uint8_t dataFilterNbr;	//Indicate which filter from local filters or CAN filter bank is used
@@ -534,21 +581,25 @@ typedef struct{
 
 typedef struct{
 	//Output result
-	int32_t result[3];	//Indicate next, current and previous function output state
-	uint8_t inUse;		//Indicate if function is used by other Functions or Outputs
+	int32_t result[NBR_OF_FUNC_RESULTS];	//Indicate next, current and previous function output state
+	uint8_t invert;							//Set if result should be inverted
+	uint8_t inUse;							//Indicate if function is used by other Functions or Outputs
+
+	//Input processing
+	int32_t consts[NBR_OF_FUNC_CONSTS];				//Constants used in specific Function types
+	int32_t* inputs[NBR_OF_FUNC_INPUTS*2];			//Array of pointers to each function result used as inputs
+	PDM_Function_Edge inEdge[NBR_OF_FUNC_INPUTS];	//Array indicating which edge the inputs must be to cause a change of state
 
 	//Input configuration
-	int32_t** inputs;				//Array of pointers to each function result used as inputs
-	PDM_Function_Edge** inEdge;		//Array of pointers to each function result edge (as of rising, falling or none)
-	uint8_t nbrOfInputs;			//Amount of used inputs
-	uint16_t* inputNbr;				//Array indicating the position of input in it's array or constant value
-	PDM_Function_Edge* inEdgetype;	//Array indicating which edge the inputs must be to cause a change of state
-	PDM_Data_Cast* constCast;		//Indicate which type of variable a constant should be cast to
-	PDM_Function_Input* inputTypes;	//Array storing each input type
+	uint8_t nbrOfInputs;							//Amount of used inputs
+	uint16_t inputNbr[NBR_OF_FUNC_INPUTS];			//Array indicating the position of input in it's array
+	PDM_Data_Cast constCast[NBR_OF_FUNC_CONSTS];	//Indicate which type of variable a constant should be cast to
+	PDM_Input_Type inputTypes[NBR_OF_FUNC_INPUTS];	//Array storing each input type
 
 	//Function configuration
 	uint16_t funcDelay[NBR_OF_FUNC_TIMES];	//Delays for result to change states or time for result state (Blink/Pulse)
 	osTimerId_t funcTimer;					//Timer for change of result delay
+	osMessageQueueId_t processQueue;		//Queue to send interrupt source to process Thread
 	PDM_Function_Type type;					//Indicate which type of operation the function performs
 }PDM_Function_Struct;
 
@@ -574,11 +625,8 @@ typedef struct{
 }PDM_PWM_ANN_Struct;
 
 typedef struct{
-	//Used for PWM CAN
-	uint16_t canVarID[2];
-
 	uint8_t mapLengths[2];
-	int16_t commandVar[2];
+	int32_t commandVar[2];
 	//[0][i]: column; [1][j]: line
 	int16_t* commandVarStep[2];
 	//[column][line] or [x][y]
@@ -586,26 +634,25 @@ typedef struct{
 }PDM_PWM_Map_Struct;
 
 typedef struct{
-	uint16_t dutyCycle;
+	uint16_t dutyCycle;	//Output PWM Duty Cycle
 
 	//Used for configuration
 	uint16_t pwmFrequency;
-	PDM_Output_Type outputType;
+	PDM_PWM_Output_Type type;
 	PDM_SoftStart_Enabled softStart;
 
-	//Timer information
+	//Hardware Timer peripheral information
 	uint16_t timChannel;
 	TIM_HandleTypeDef* htim;
 
 	//Used to set specific duty cycles
-	uint16_t presetEnable[2];
-	uint16_t presetInputs[2];
-	uint16_t presetDutyCycle[2];
-	PDM_Output_Enabled outEnable[2];
+	uint16_t presetDutyCycle[PWM_NBR_OF_PRESETS];
+	int32_t* presetInputs[PWM_NBR_OF_PRESETS];
+	PDM_Input_Type presetInType[PWM_NBR_OF_PRESETS];
 
 	//Struct pointers for additional functionalities
-	PDM_PWM_ANN_Struct* pwmAnnStruct;
-	PDM_PWM_Map_Struct* pwmMapStruct;
+	PDM_PWM_ANN_Struct* annStruct;
+	PDM_PWM_Map_Struct* mapStruct;
 	PDM_PWM_SoftStart_Struct* softStartStruct;
 }PDM_PWM_Ctrl_Struct;
 
@@ -618,14 +665,18 @@ typedef struct{
 	uint16_t timeout[3];	//PDM_Fuse_Time
 	PDM_Fuse_Status status;
 	osTimerId_t osTimer;
-	osSemaphoreId_t* outSemaphore;	//Semaphore handle for output process Thread
+
+	//Output and Function processing
+	osMessageQueueId_t* outputQueue;	//Queue handle for output process Thread
+	osMessageQueueId_t* processQueue;	//Queue handle for processing Thread
+	PDM_Function_Struct* funcStruct;	//Fuse Function for operations processing
 }PDM_Output_Fuse_Struct;
 
 typedef struct{
 	//Output activation
-	GPIO_PinState outputState[2];	//PDM_Output_State
-	PDM_Output_Type outType;
-	PDM_Fuse_Enabled fuseEnable;
+	int32_t* inputFunc;				//Function result input
+	GPIO_PinState outputState;		//Indicate if output pin should be high or low
+	PDM_Fuse_Enabled fuseEnable;	//Specify if fuse is enabled for this output
 
 	//Output hardware info (loaded using defines)
 	uint16_t outputPin;
@@ -633,8 +684,8 @@ typedef struct{
 	PDM_Output_Hardware outputHardware;
 
 	//Mixed types of activation
-	PDM_Output_Fuse_Struct* fuseStruct;
-	PDM_PWM_Ctrl_Struct* pwmStruct;
+	PDM_Output_Fuse_Struct* fuseStruct;	//Pointer to fuse struct
+	PDM_PWM_Ctrl_Struct* pwmStruct;		//Pointer to PWM struct
 }PDM_Output_Ctrl_Struct;
 
 typedef struct{
@@ -685,8 +736,7 @@ typedef struct{
 	uint16_t* inputPins;
 	GPIO_TypeDef* inputGPIOs;
 	PDM_Output_Ctrl_Struct* outStruct;
-	osMessageQueueId_t* canQueueHandle;
-	osSemaphoreId_t* semaphoreHandle;
+	osMessageQueueId_t* outQueueHandle;
 }PDM_OutSet_Thread_Struct;
 
 typedef struct{

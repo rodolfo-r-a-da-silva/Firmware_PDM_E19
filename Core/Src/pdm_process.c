@@ -7,15 +7,14 @@
 
 #include "pdm.h"
 
-static uint8_t Channel_CAN_Process(PDM_Data_Queue_Struct* rxStruct, PDM_Data_Channel_Struct* dataStruct, uint8_t nbrOfChannels);
+static uint8_t Channel_CAN_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data_Queue_Struct* rxStruct, uint8_t nbrOfChannels);
 static uint8_t Channel_Local_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data_Type dataRead, int16_t* dataBuffer);
 static uint8_t Function_Input_Process(PDM_Function_Struct* dataStruct, PDM_Input_Struct* inStruct, int16_t* dataBuffer);
+static uint8_t Function_Fuse_Process(PDM_Function_Struct* funcStruct, PDM_Output_Ctrl_Struct* outStruct, int16_t* dataBuffer);
 static uint8_t Function_Result_Process(PDM_Function_Struct* funcStruct);
 static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer);
 static void Data_Timeout_Callback(void* dataStruct);
 static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFlag, uint16_t* adcBuffer, uint16_t* dataBuffer);
-static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type dataRead, uint16_t* dataBuffer);
-static void Fuse_Timer_Callback(void* funcStruct);
 
 /*BEGIN FUNCTIONS*/
 
@@ -56,13 +55,22 @@ void PDM_Process_Thread(void* threadStruct)
 			{
 				case Interrupt_CAN:
 					//Try to convert data for each CAN data channel
-					updateFlag = Channel_CAN_Process(&rxStruct, thrdStr->channels, thrdStr->nbrOfChannels);
+					processFlag = Channel_CAN_Process(&rxStruct, thrdStr->channels, thrdStr->nbrOfChannels);
+
+					break;
+
+				case Interrupt_Function:
+					break;
+
+				case Interrupt_Fuse:
+					//Process fuse Functions and place states in Thread safe data buffer
+					processFlag = Function_Fuse_Process(thrdStr->functions, thrdStr->outStruct, dataBuffer);
 
 					break;
 
 				case Interrupt_Gpio:
 					//Read all input pins, if any pin is used, set flag
-					updateFlag = Function_Input_Process(thrdStr->functions, thrdStr->inStruct, dataBuffer);
+					processFlag = Function_Input_Process(thrdStr->functions, thrdStr->inStruct, dataBuffer);
 
 					break;
 
@@ -74,7 +82,7 @@ void PDM_Process_Thread(void* threadStruct)
 					Fuse_Check_Status(thrdStr->outStruct->fuseStruct, readingFlag[1], dataBuffer);
 
 					//Check if any channel uses local data and if yes, change channel value and update flag
-					updateFlag = Channel_Local_Process(thrdStr->channels, readingFlag[1], dataBuffer);
+					processFlag = Channel_Local_Process(thrdStr->channels, readingFlag[1], dataBuffer);
 
 					if(osMutexAcquire(thrdStr->dataMutexHandle, 0) == osOK)	//Check if data buffer is safe to access
 					{
@@ -101,7 +109,11 @@ void PDM_Process_Thread(void* threadStruct)
 
 /*BEGIN STATIC FUNCTIONS*/
 
-static uint8_t Channel_CAN_Process(PDM_Data_Queue_Struct* rxStruct, PDM_Data_Channel_Struct* dataStruct, uint8_t nbrOfChannels)
+//Try to convert data received from CAN bus
+//dataStruct - Pointer to array of data Channel structs
+//rxStruct - Pointer to struct containing data from CAN bus
+//nbrOfChannels - Total number of data Channels
+static uint8_t Channel_CAN_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data_Queue_Struct* rxStruct, uint8_t nbrOfChannels)
 {
 	uint8_t retVal = PROCESS_NONE;
 	uint8_t aux[2];
@@ -181,72 +193,73 @@ static uint8_t Channel_CAN_Process(PDM_Data_Queue_Struct* rxStruct, PDM_Data_Cha
 			continue;
 		}
 
+		//Change previous state of data
+		dataStruct[i]->data[Data_Previous] = dataStruct[i]->data[Data_Current];
+
 		//Cast received data to correct format
 		Data_Cast(dataStruct, aux);
 
-		//Set retVal if CAN data is used in Functions or PWM
-		retVal |= dataStruct[i]->inUse;
+		//Set retVal if value has changed and CAN data is used in Functions or PWM
+		if(dataStruct[i]->data[Data_Previous] != dataStruct[i]->data[Data_Current])
+			retVal |= dataStruct[i]->inUse;
 	}
 
 	return retVal;
 }
 
+//Convert data read from analog MCU inputs
+//dataStruct - Pointer to array of data Channel structs
+//dataRead - Indication of last type of data read
+//int16_t* dataBuffer - Pointer to Thread safe array containing all data read locally by the module
 static uint8_t Channel_Local_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data_Type dataRead, int16_t* dataBuffer)
 {
 	uint8_t retVal = PROCESS_NONE;
-	uint8_t index[2];	//Minimum and maximum index for dataBuffer
+	uint8_t i, j, k;	//dataStruct and dataBuffer indexes and maximum index for dataBuffer respectively
 
-	for(uint8_t i = CHANNEL_ANALOG_OFFSET; i < CHANNEL_ANALOG_FINISH; i++)
+	//Set indexes based on last data read
+	switch(dataRead)
 	{
-		//Return if channel source isn't Local or channel isn't used in any conditions
-		if((dataStruct[i]->source != Data_ADC)
-				|| (dataStruct[i]->inUse == IN_USE_NONE))
-			continue;
+		case Data_Type_Current0:
+			j = Data_Curr1;
+			k = Data_Curr15;
+			break;
 
-		//Check if channel uses MCU Temperature
-		//This check exists because the temperature is read at every ADC processing cycle
-		if(dataStruct[i]->position == Data_TempMCU)
-			dataStruct[i]->data = (int32_t) dataBuffer[Data_TempMCU];
+		case Data_Type_Current1:
+			j = Data_Curr2;
+			k = Data_Curr16;
+			break;
 
-		else
-		{
-			//Select channels to update based on last data read
-			switch(dataRead)
-			{
-				case Data_Type_Current0:
-					index[0] = Data_Curr1;
-					index[1] = Data_Curr15;
-					break;
+		case Data_Type_Temperature:
+			j = Data_Temp1;
+			k = Data_Temp8;
+			break;
 
-				case Data_Type_Current1:
-					index[0] = Data_Curr2;
-					index[1] = Data_Curr16;
-					break;
+		case Data_Type_Voltage:
+			j = Data_Volt;
+			k = Data_Volt;
+			break;
 
-				case Data_Type_Temperature:
-					index[0] = Data_Temp1;
-					index[1] = Data_Temp8;
-					break;
+		default:
+			return retVal;
+	}
 
-				case Data_Type_Voltage:
-					index[0] = Data_Volt;
-					index[1] = Data_Volt;
-					break;
+	//Update MCU temperature Channel
+	dataStruct[CHANNEL_TEMP_MCU]->data[Data_Previous] = dataStruct[CHANNEL_TEMP_MCU]->data[Data_Current];
+	dataStruct[CHANNEL_TEMP_MCU]->data[Data_Current] = (int32_t) dataBuffer[Data_TempMCU];
 
-				default:
-					continue;
-			}
-		}
+	//Update retVal if data has changed
+	if(dataStruct[CHANNEL_TEMP_MCU]->data[Data_Previous] != dataStruct[CHANNEL_TEMP_MCU]->data[Data_Current])
+		retVal |= dataStruct[CHANNEL_TEMP_MCU]->inUse;
 
-		//Check for matching data ID
-		for(; index[0] <= index[1]; index[0]++)
-		{
-			if(dataStruct[i]->position == index[0])
-			{
-				dataStruct->data = (int32_t) dataBuffer[index[0]];
-				retVal |= dataStruct[i]->inUse;
-			}
-		}
+	//Place each read data into respective Channel
+	for(i = 0; j <= k; i++, j++)
+	{
+		dataStruct[j]->data[Data_Previous] = dataStruct[j]->data[Data_Current];
+		dataStruct[j]->data[Data_Current] = (int32_t) dataBuffer[i];
+
+		//Update retVal if data has changed
+		if(dataStruct[j]->data[Data_Previous] != dataStruct[j]->data[Data_Current])
+			retVal |= dataStruct[j]->inUse;
 	}
 
 	return retVal;
@@ -264,13 +277,13 @@ static uint8_t Function_Input_Process(PDM_Function_Struct* funcStruct, PDM_Input
 	//Reset input value in Thread safe buffer
 	dataBuffer[Data_Input] = 0;
 
-	for(uint8_t i = FUNCTION_INPUT_OFFSET; i < FUNCTION_INPUT_FINISH; i++)
+	for(uint8_t i = FUNCTION_INPUT_OFFSET, j = 0; i < FUNCTION_INPUT_FINISH; i++, j++)
 	{
 		//Read input pin level and set data value
-		funcStruct[i]->result[Result_Next] = HAL_GPIO_ReadPin(inStruct->gpio[i], inStruct->pin[i]);
+		funcStruct[i]->result[Result_Next] = HAL_GPIO_ReadPin(inStruct->gpio[j], inStruct->pin[j]);
 
 		//Change value in Thread safe buffer
-		dataBuffer[Data_Input] |= (funcStruct[i]->result[Result_Next] << i);
+		dataBuffer[Data_Input] |= (funcStruct[i]->result[Result_Next] << j);
 
 		//Skip if Input Pin is unused or next and current Results are equal
 		if((funcStruct[i]->inUse == IN_USE_NONE)
@@ -283,6 +296,248 @@ static uint8_t Function_Input_Process(PDM_Function_Struct* funcStruct, PDM_Input
 	return retVal;
 }
 
+//Read output fuses state, update each function and place states into Thread safe data buffer
+//Closed circuit is represented by "0" and open circuit by "1"
+//PDM_Function_Struct* funcStruct - Pointer to Functions array
+//PDM_Output_Ctrl_Struct* outStruct - Pointer to output structs array containing each fuse struct
+//int16_t* dataBuffer - Pointer to Thread safe array containing all data read locally by the module
+static uint8_t Function_Fuse_Process(PDM_Function_Struct* funcStruct, PDM_Output_Ctrl_Struct* outStruct, int16_t* dataBuffer)
+{
+	//Store value to return
+	uint8_t retVal = PROCESS_NONE;
+
+	//Reset input value in Thread safe buffer
+	dataBuffer[Data_Fuse] = 0;
+
+	for(uint8_t i = FUNCTION_FUSE_OFFSET, j = 0; i < FUNCTION_FUSE_FINISH; i++ ,j++)
+	{
+		//Place state inside result
+		if(outStruct[j]->fuseStruct->status == Fuse_Closed)
+			funcStruct[i]->result[Result_Next] = 0;
+
+		else
+			funcStruct[i]->result[Result_Next] = 1;
+
+		//Change value in Thread safe buffer
+		dataBuffer[Data_Fuse] |= (funcStruct[i]->result[Result_Next] << j);
+
+		//Skip if Input Pin is unused or next and current Results are equal
+		if((funcStruct[i]->inUse == IN_USE_NONE)
+				|| (funcStruct[i]->result[Result_Next] == funcStruct[i]->result[Result_Current]))
+			continue;
+
+		retVal |= Function_Result_Process(&funcStruct[i]);
+	}
+
+	return retVal;
+}
+
+//Process each custom Function set by user
+//PDM_Function_Struct* funcStruct - Pointer to array of Functions
+//uint8_t nbrOfFunctions - Amount of custom functions defined by user
+static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t nbrOfFunctions)
+{
+	uint8_t retVal = PROCESS_NONE;
+	uint8_t updateFlag = 0;
+
+	for(uint8_t i = FUNCTION_CUSTOM_OFFSET, j = 0; j < nbrOfFunctions; i++, j++)
+	{
+		//Continue "for loop" if Function is unused
+		if((funcStruct[i]->inUse == IN_USE_NONE)
+				|| ((*funcStruct[i]->result[FuncIn_Current1] == *funcStruct[i]->result[FuncIn_Previous1])
+						&& (*funcStruct[i]->result[FuncIn_Current2] == *funcStruct[i]->result[FuncIn_Previous2])
+						&& (*funcStruct[i]->result[FuncIn_Current3] == *funcStruct[i]->result[FuncIn_Previous3])
+						&& (*funcStruct[i]->result[FuncIn_Current4] == *funcStruct[i]->result[FuncIn_Previous4])))
+			continue;
+
+		//Reset update flag, set only if there are state changes
+		updateFlag = 0;
+
+		//Process each result based on Function Type
+		switch(funcStruct[i]->type)
+		{
+			case Function_NOT:
+				funcStruct[i]->result[Result_Next] = !(*funcStruct[i]->inputs[FuncIn_Current1]);
+				updateFlag = 1;
+				break;
+
+			case Function_AND:
+				//Set result to allow true results and set flag
+				funcStruct[i]->result[Result_Next] = Result_True;
+				updateFlag = 1;
+
+				//AND operation with each Function input
+				for(uint8_t k = 0; k < funcStruct[i]->nbrOfInputs; k++)
+					funcStruct[i]->result[Result_Next] = (funcStruct[i]->result[Result_Next] && *funcStruct[i]->inputs[k*2]);
+
+				break;
+
+			case Function_OR:
+				//Reset result to allow false results and set flag
+				funcStruct[i]->result[Result_Next] = Result_False;
+				updateFlag = 1;
+
+				//OR operation with each Function input
+				for(uint8_t k = 0; k < funcStruct[i]->nbrOfInputs; k++)
+					funcStruct[i]->result[Result_Next] = (funcStruct[i]->result[Result_Next] || *funcStruct[i]->inputs[k*2]);
+
+				break;
+
+			case Function_XOR:
+				funcStruct[i]->result[Result_Next] = ((*funcStruct[i]->inputs[FuncIn_Current1] || *funcStruct[i]->inputs[FuncIn_Current2])
+												&& !(*funcStruct[i]->inputs[FuncIn_Current1] && *funcStruct[i]->inputs[FuncIn_Current2]));
+				updateFlag = 1;
+				break;
+
+			case Function_BitAND:
+				funcStruct[i]->result[Result_Next] = (funcStruct[i]->inputs[FuncIn_Current1] & funcStruct[i]->inputs[FuncIn_Current2]);
+				updateFlag = 1;
+				break;
+
+			case Function_Equals:
+				funcStruct[i]->result[Result_Next] = (*funcStruct[i]->inputs[FuncIn_Current1] == *funcStruct[i]->inputs[FuncIn_Current2]);
+				updateFlag = 1;
+				break;
+
+			case Function_Less:
+				funcStruct[i]->result[Result_Next] = (*funcStruct[i]->inputs[FuncIn_Current1] < *funcStruct[i]->inputs[FuncIn_Current2]);
+				updateFlag = 1;
+				break;
+
+			case Function_More:
+				funcStruct[i]->result[Result_Next] = (*funcStruct[i]->inputs[FuncIn_Current1] > *funcStruct[i]->inputs[FuncIn_Current2]);
+				updateFlag = 1;
+				break;
+
+			case Function_Hysteresis:
+				//Set flag if there is any result change
+				//Check low value
+				if(*funcStruct[i]->inputs[FuncIn_Current1] < *funcStruct[i]->inputs[FuncIn_Current2])
+				{
+					funcStruct[i]->result[Result_Next] = Result_False;
+					updateFlag = 1;
+				}
+
+				//Check high value
+				else if(*funcStruct[i]->inputs[FuncIn_Current1] > *funcStruct[i]->inputs[FuncIn_Current3])
+				{
+					funcStruct[i]->result[Result_Next] = Result_True;
+					updateFlag = 1;
+				}
+
+				break;
+
+			case Function_Blink:
+				//Set flag and set next equal to input result, Function output will blink while next result is true
+				funcStruct[i]->result[Result_Next] = *funcStruct[i]->inputs[FuncIn_Current1];
+				updateFlag = 1;
+
+				break;
+
+			case Function_Pulse:
+				//Set flag if a pulse should occur
+				//Check for change in input state and and correct input edge
+				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
+				{
+					funcStruct[i]->result[Result_Next] = Result_True;
+					updateFlag = 1;
+				}
+
+				//Set next result as false if input turned to false
+				else
+					funcStruct[i]->result[Result_Next] = Result_False;
+
+				break;
+
+			case Function_SetReset:
+				//Set flag if there is any result change
+				//Reset result if input state 1 has changed and has correct edge
+				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
+				{
+					funcStruct[i]->result[Result_Next] = Result_False;
+					updateFlag = 1;
+				}
+
+				//Set result if input state 2 has changed and has correct edge
+				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current2))
+				{
+					funcStruct[i]->result[Result_Next] = Result_True;
+					updateFlag = 1;
+				}
+
+				break;
+
+			case Function_Toggle:
+				//Set flag if there is any result change
+				//Override for false output
+				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current3))
+				{
+					funcStruct[i]->result[Result_Next] = Result_False;
+					updateFlag = 1;
+				}
+
+				//Override for true output
+				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current2))
+				{
+					funcStruct[i]->result[Result_Next] = Result_True;
+					updateFlag = 1;
+				}
+
+				//Perform not operation on next result if input state changed and has correct edge
+				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
+				{
+					funcStruct[i]->result[Result_Next] = !funcStruct[i]->result[Result_Next];
+					updateFlag = 1;
+				}
+
+				break;
+
+			case Function_Counter:
+				//Update retVal if there is any change in value
+				//Decrement if input state 1 has changed and has correct edge
+				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
+				{
+					funcStruct[i]->result[Result_Current] -= funcStruct[i]->consts[FuncConst_Dec];
+					retVal |= funcStruct[i]->inUse;
+				}
+
+				//Increment if input state 2 has changed and has correct edge
+				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current2))
+				{
+					funcStruct[i]->result[Result_Current] += funcStruct[i]->consts[FuncConst_Inc];
+					retVal |= funcStruct[i]->inUse;
+				}
+
+				//First override
+				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current3))
+				{
+					funcStruct[i]->result[Result_Current] = funcStruct[i]->consts[FuncConst_Ovrr1];
+					retVal |= funcStruct[i]->inUse;
+				}
+
+				//Second override
+				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current4))
+				{
+					funcStruct[i]->result[Result_Current] = funcStruct[i]->consts[FuncConst_Ovrr2];
+					retVal |= funcStruct[i]->inUse;
+				}
+
+				break;
+
+			default:
+				continue;
+		}
+
+		//Process result inversion and delay if there was an update
+		if(updateFlag == 1)
+			retVal |= Function_Result_Process(funcStruct[i]);
+	}
+
+	return retVal;
+}
+
+//Set current result or start delay timer according to next result state
+//PDM_Function_Struct* funcStruct = Pointer to Function struct
 static uint8_t Function_Result_Process(PDM_Function_Struct* funcStruct)
 {
 	//Store return flags
@@ -291,24 +546,49 @@ static uint8_t Function_Result_Process(PDM_Function_Struct* funcStruct)
 	//Store next Result to process according to correct Delay
 	uint8_t aux;
 
-	//Set aux variable to Process correct result Timer condition
-	aux = funcStruct->result[Result_Next];
-
-	//Set current Result and retVal if there is no Delay
-	if(funcStruct->funcDelay[aux] == 0)
+	//Process according to Function type
+	//Timed Functions receive their specific process
+	if((funcStruct->type == Function_Blink) || (funcStruct->type == Function_Pulse))
 	{
-		funcStruct->result[Result_Next] = funcStruct->result[Result_Current];
+		//Start or stop timer according to next result (equal to input condition in this case)
+		if(funcStruct->result[Result_Next] == Result_True)
+			osTimerStart(funcStruct->funcTimer, pdMS_TO_TICKS(funcStruct->funcDelay[Time_True]*10));
 
-		retVal |= funcStruct->inUse;
+		else if((funcStruct->type == Function_Blink) && (osTimerIsRunning(funcStruct->funcTimer) == 1))
+			osTimerStop(funcStruct->funcTimer);
+
+		funcStruct->result[Result_Current] = funcStruct->result[Result_Next];
+		retVal = funcStruct->inUse;
 	}
 
-	//Start Timer to wait Delay
 	else
-		osTimerStart(funcStruct->funcTimer, pdMS_TO_TICKS(funcStruct->funcDelay[aux]*10));
+	{
+		//Set aux variable to Process correct result Timer condition
+		aux = funcStruct->result[Result_Next];
+
+		//Set current Result and retVal if there is no Delay
+		if(funcStruct->funcDelay[aux] == 0)
+		{
+			funcStruct->result[Result_Current] = funcStruct->result[Result_Next];
+
+			retVal = funcStruct->inUse;
+		}
+
+		//Start Timer to wait Delay
+		else
+			osTimerStart(funcStruct->funcTimer, pdMS_TO_TICKS(funcStruct->funcDelay[aux]*10));
+	}
+
+	//Invert result if configured
+	if(funcStruct->invert == 1)
+		funcStruct->result[Result_Current] = !funcStruct->result[Result_Current];
 
 	return retVal;
 }
 
+//Cast read data to int32_t inside Channel struct
+//PDM_Data_Channel_Struct* dataStruct - Pointer to Channel struct
+//uint8_t* buffer - Pointer to buffer where data is stored
 static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer)
 {
 	uint8_t aux = 0;
@@ -318,11 +598,11 @@ static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer)
 	switch(dataStruct->cast)
 	{
 		case Cast_Uint8:
-			dataStruct->data = (int32_t) (buffer[0] & dataStruct->mask);
+			dataStruct->data[Data_Current] = (int32_t) (buffer[0] & dataStruct->mask);
 			break;
 
 		case Cast_Int8:
-			dataStruct->data = (int32_t) ((int8_t) buffer[0]);
+			dataStruct->data[Data_Current] = (int32_t) ((int8_t) buffer[0]);
 			break;
 
 		case Cast_Uint16:
@@ -334,7 +614,7 @@ static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer)
 				buffer[1] = aux;
 			}
 
-			dataStruct->data = (int32_t) ((uint16_t) ((buffer[0] << 8) | buffer[1]) & dataStruct->mask);
+			dataStruct->data[Data_Current] = (int32_t) ((uint16_t) ((buffer[0] << 8) | buffer[1]) & dataStruct->mask);
 
 			break;
 
@@ -347,7 +627,7 @@ static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer)
 				buffer[1] = aux;
 			}
 
-			dataStruct->data = (int32_t) ((int16_t) ((buffer[0] << 8) | buffer[1]));
+			dataStruct->data[Data_Current] = (int32_t) ((int16_t) ((buffer[0] << 8) | buffer[1]));
 
 			break;
 	}
@@ -355,6 +635,12 @@ static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer)
 	return;
 }
 
+//Read the module's analog inputs (currents, temperature and voltage)
+//Set wait time for next reading and start hardware Timer
+//TIM_HandleTypeDef* htim - Pointer to hardware Timer peripheral handle
+//PDM_Data_Type* readingFlag - Pointer to array containing flag of data to read now and flag of last processed data
+//uint16_t* adcBuffer - Pointer to buffer used by ADC to store read inputs
+//uint16_t* dataBuffer - Pointer to Thread safe data buffer
 static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFlag, uint16_t* adcBuffer, uint16_t* dataBuffer)
 {
 	//Convert ADC value based on selected reading and sets delay for next reading
@@ -463,6 +749,11 @@ static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFl
 	return;
 }
 
+//Check if any output current is above threshold
+//Start Timer for outputs above Threshold or already in open circuit
+//PDM_Output_Ctrl_Struct* outStruct - pointer to array of output structs
+//PDM_Data_Type dataRead - Flag indicating which bank of output Fuses to check
+//uint16_t* dataBuffer - Pointer to Thread safe data buffer
 static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type dataRead, uint16_t* dataBuffer)
 {
 	uint8_t i[2];	//fuseStruct buffer and dataBuffer minimum and maximum index
@@ -490,7 +781,7 @@ static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type d
 	{
 		//Check if fuse is enabled
 		//Skip current execution if fuse is disabled
-		if(outStruct->fuseEnable == Fuse_Disabled)
+		if(outStruct[i[0]]->fuseEnable == Fuse_Disabled)
 			continue;
 
 		//Enters if current is below allowed and previous fuse status was waiting for circuit opening
@@ -513,15 +804,18 @@ static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type d
 
 				//Set waiting time for disarming for the first time
 				if(outStruct[i[0]]->fuseStruct->retryCount == 0)
-					osTimerStart(outStruct[i[0]]->fuseStruct->osTimer, pdMS_TO_TICKS(outStruct[i[0]]->fuseStruct->timeout[Fuse_Time_First]));
+					osTimerStart(outStruct[i[0]]->fuseStruct->osTimer,
+							pdMS_TO_TICKS(outStruct[i[0]]->fuseStruct->timeout[Fuse_Time_First]));
 
 				//Set waiting time for disarming after the first attempt
 				else
-					osTimerStart(outStruct[i[0]]->fuseStruct->osTimer, pdMS_TO_TICKS(outStruct[i[0]]->fuseStruct->timeout[Fuse_Time_Open]));
+					osTimerStart(outStruct[i[0]]->fuseStruct->osTimer,
+							pdMS_TO_TICKS(outStruct[i[0]]->fuseStruct->timeout[Fuse_Time_Open]));
 			}
 
 			//Enter if there are re-closing retry attempts available and fuse status is open
-			else if((outStruct[i[0]]->fuseStruct->retryCount < outStruct[i[0]]->fuseStruct->retry)
+			else if(((outStruct[i[0]]->fuseStruct->retryCount < outStruct[i[0]]->fuseStruct->retry)
+					|| (outStruct[i[0]]->fuseStruct->retry == FUSE_RETRY_INF))
 					&& (outStruct[i[0]]->fuseStruct->status == Fuse_Open))
 				osTimerStart(outStruct[i[0]]->fuseStruct->osTimer, pdMS_TO_TICKS(outStruct[i[0]]->fuseStruct->timeout[Fuse_Time_Close]));
 		}
@@ -530,53 +824,4 @@ static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type d
 	return;
 }
 
-static void Fuse_Timer_Callback(void* funcStruct)
-{
-	PDM_Output_Fuse_Struct* fncStr = (PDM_Output_Fuse_Struct*) funcStruct;
-
-	//Enter if fuse status is set to wait
-	if(fncStr->status == Fuse_Wait)
-	{
-		fncStr->retryCount++;	//Increments number of retry counts
-		fncStr->status = Fuse_Open;	//Set fuse to open
-	}
-
-	//Enter if fuse status is set to open
-	else if(fncStr->status == Fuse_Open)
-		fncStr->status = Fuse_Wait;	//Set fuse to close at waiting state
-
-	osSemaphoreRelease(fncStr->outSemaphore);	//Release Semaphore to output Thread for it to open or close the output
-
-	return;
-}
-
 /*END STATIC FUNCTIONS*/
-
-/*BEGIN CALLBACK FUNCTIONS*/
-
-//Function that indicates data reception timeout and places predefined value if configured
-static void Data_Timeout_Callback(void* dataStruct)
-{
-	PDM_Data_Channel_Struct* dataStr = (PDM_Data_Channel_Struct*) dataStruct;
-
-	//Change data value if timeout happens
-	if(dataStr->keep == Data_Reset)
-		Data_Cast(dataStr, (uint8_t*) &dataStr->defaultVal);
-
-	//Set flag indicating timeout
-	dataStr->timeoutFlag = CAN_Data_Timeout;
-
-	return;
-}
-
-static void Function_Delay_Callback(void* funcStruct)
-{
-	PDM_Function_Struct* funcStr = (PDM_Function_Struct* funcStruct);
-
-	//Change current result state
-
-
-	return;
-}
-
-/*END  CALLBACK FUNCTIONS*/
