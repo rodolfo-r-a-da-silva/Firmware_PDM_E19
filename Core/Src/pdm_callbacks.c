@@ -68,6 +68,9 @@ void Function_Delay_Callback(void* callbackStruct)
 			aux = cllbckStr->result[Result_Current];
 			osTimerStart(cllbckStr->funcTimer, cllbckStr->funcDelay[aux]);
 		}
+
+		else
+			cllbckStr->result[Result_Next] = Result_False;
 	}
 
 	else

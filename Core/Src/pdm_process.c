@@ -11,6 +11,7 @@ static uint8_t Channel_CAN_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data
 static uint8_t Channel_Local_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data_Type dataRead, int16_t* dataBuffer);
 static uint8_t Function_Input_Process(PDM_Function_Struct* dataStruct, PDM_Input_Struct* inStruct, int16_t* dataBuffer);
 static uint8_t Function_Fuse_Process(PDM_Function_Struct* funcStruct, PDM_Output_Ctrl_Struct* outStruct, int16_t* dataBuffer);
+static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t nbrOfFunctions);
 static uint8_t Function_Result_Process(PDM_Function_Struct* funcStruct);
 static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer);
 static void Data_Timeout_Callback(void* dataStruct);
@@ -435,17 +436,20 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 				break;
 
 			case Function_Pulse:
-				//Set flag if a pulse should occur
+				//Set flag if a pulse should start or stop
+				//Check for pulse stop condition
+				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current2))
+				{
+					funcStruct[i]->result[Result_Next] = Result_False;
+					updateFlag = 1;
+				}
+
 				//Check for change in input state and and correct input edge
-				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
+				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
 				{
 					funcStruct[i]->result[Result_Next] = Result_True;
 					updateFlag = 1;
 				}
-
-				//Set next result as false if input turned to false
-				else
-					funcStruct[i]->result[Result_Next] = Result_False;
 
 				break;
 
@@ -494,33 +498,58 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 
 			case Function_Counter:
 				//Update retVal if there is any change in value
+				//First override
+				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current3))
+					funcStruct[i]->result[Result_Current] = funcStruct[i]->consts[FuncConst_Ovrr1];
+
+				//Second override
+				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current4))
+					funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_Ovrr2];
+
 				//Decrement if input state 1 has changed and has correct edge
-				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
+				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
 				{
-					funcStruct[i]->result[Result_Current] -= funcStruct[i]->consts[FuncConst_Dec];
-					retVal |= funcStruct[i]->inUse;
+					//Check if channel isn't already at minimum count
+					funcStruct[i]->result[Result_Next] -= funcStruct[i]->consts[FuncConst_Dec];
+
+					//Check if count is below minimum count
+					if(funcStruct[i]->result[Result_Next] < funcStruct[i]->consts[FuncConst_Low])
+					{
+						//Counter wrap to highest count
+						if((funcStruct[i]->countWrap & COUNTER_WRAP_TO_HIGH) == COUNTER_WRAP_TO_HIGH)
+							funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_Ovrr1];
+
+						//Set to maximum count if wrap is disabled
+						else
+							funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_Low];
+					}
 				}
 
 				//Increment if input state 2 has changed and has correct edge
 				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current2))
 				{
-					funcStruct[i]->result[Result_Current] += funcStruct[i]->consts[FuncConst_Inc];
+					funcStruct[i]->result[Result_Next] += funcStruct[i]->consts[FuncConst_Inc];
+
+					//Check if count is above maximum count
+					if(funcStruct[i]->result[Result_Next] > funcStruct[i]->consts[FuncConst_High])
+					{
+						//Counter wrap to lowest count if enabled
+						if((funcStruct[i]->countWrap & COUNTER_WRAP_TO_LOW) == COUNTER_WRAP_TO_LOW)
+							funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_Ovrr2];
+
+						//Set to maximum count if wrap is disabled
+						else
+							funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_High];
+					}
+				}
+
+				//Set current count and retVal if it has changed
+				if(funcStruct[i]->result[Result_Current] != funcStruct[i]->result[Result_Next])
+				{
+					funcStruct[i]->result[Result_Current] = funcStruct[i]->result[Result_Next];
 					retVal |= funcStruct[i]->inUse;
 				}
 
-				//First override
-				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current3))
-				{
-					funcStruct[i]->result[Result_Current] = funcStruct[i]->consts[FuncConst_Ovrr1];
-					retVal |= funcStruct[i]->inUse;
-				}
-
-				//Second override
-				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current4))
-				{
-					funcStruct[i]->result[Result_Current] = funcStruct[i]->consts[FuncConst_Ovrr2];
-					retVal |= funcStruct[i]->inUse;
-				}
 
 				break;
 
@@ -554,7 +583,7 @@ static uint8_t Function_Result_Process(PDM_Function_Struct* funcStruct)
 		if(funcStruct->result[Result_Next] == Result_True)
 			osTimerStart(funcStruct->funcTimer, pdMS_TO_TICKS(funcStruct->funcDelay[Time_True]*10));
 
-		else if((funcStruct->type == Function_Blink) && (osTimerIsRunning(funcStruct->funcTimer) == 1))
+		else if(osTimerIsRunning(funcStruct->funcTimer) == 1)
 			osTimerStop(funcStruct->funcTimer);
 
 		funcStruct->result[Result_Current] = funcStruct->result[Result_Next];

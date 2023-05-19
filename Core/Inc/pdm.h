@@ -89,6 +89,9 @@
 #define FUNCTION_FUSE_FINISH	FUNCTION_FUSE_OFFSET+NBR_OF_OUTPUTS
 #define FUNCTION_CUSTOM_OFFSET	FUNCTION_FUSE_FINISH
 
+#define COUNTER_WRAP_TO_LOW		0x01
+#define COUNTER_WRAP_TO_HIGH	0x02
+
 #define NBR_OF_DATA_RESULTS	2
 
 #define NBR_OF_FUNC_TIMES	2
@@ -532,6 +535,11 @@ typedef enum{
 }PDM_SoftStart_Enabled;
 
 typedef enum{
+	SoftStart_Current,
+	SoftStart_Next
+}PDM_SoftStart_Thresholds;
+
+typedef enum{
 	ANN_In_Can,
 	ANN_In_Neuron,
 	ANN_In_Local
@@ -584,6 +592,7 @@ typedef struct{
 	int32_t result[NBR_OF_FUNC_RESULTS];	//Indicate next, current and previous function output state
 	uint8_t invert;							//Set if result should be inverted
 	uint8_t inUse;							//Indicate if function is used by other Functions or Outputs
+	uint8_t countWrap;						//Indicate if counter should wrap to low or high value
 
 	//Input processing
 	int32_t consts[NBR_OF_FUNC_CONSTS];				//Constants used in specific Function types
@@ -611,10 +620,12 @@ typedef struct{
 }PDM_Data_Queue_Struct;
 
 typedef struct{
-	uint16_t dutyCycles;		//Amount of duty cycles to get from 0 to 100%
-	uint16_t turnOnTime;		//Time (ms) it takes to get from 0 to 100%
-	uint16_t* dutyCycleBuffer;	//Buffer to feed DMA channel with duty cycle values
-	uint32_t slope;				//Slope to calculate dutyCycleBuffer
+	//Stored values
+	uint16_t nbrOfCycles;	//Number of cycles to go from 0% to 100%
+	uint16_t thresholds[2];	//Threshold of minimum current and next Duty Cycle to activate soft start (PDM_SoftStart_Thresholds)
+
+	//Calculated values
+	uint16_t* buffer;
 }PDM_PWM_SoftStart_Struct;
 
 typedef struct{
@@ -625,12 +636,12 @@ typedef struct{
 }PDM_PWM_ANN_Struct;
 
 typedef struct{
-	uint8_t mapLengths[2];
-	int32_t commandVar[2];
+	uint8_t lengths[2];
+	int32_t* inputs[2];
 	//[0][i]: column; [1][j]: line
-	int16_t* commandVarStep[2];
+	int16_t* axis[2];
 	//[column][line] or [x][y]
-	uint16_t** dutyCycleMap;
+	uint16_t** map;
 }PDM_PWM_Map_Struct;
 
 typedef struct{
@@ -653,7 +664,7 @@ typedef struct{
 	//Struct pointers for additional functionalities
 	PDM_PWM_ANN_Struct* annStruct;
 	PDM_PWM_Map_Struct* mapStruct;
-	PDM_PWM_SoftStart_Struct* softStartStruct;
+	PDM_PWM_SoftStart_Struct* ssStruct;
 }PDM_PWM_Ctrl_Struct;
 
 typedef struct{
