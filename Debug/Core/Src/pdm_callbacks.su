@@ -1,0 +1,5 @@
+../Core/Src/pdm_callbacks.c:12:6:HAL_CAN_RxFifo0MsgPendingCallback	16	static
+../Core/Src/pdm_callbacks.c:19:6:HAL_GPIO_EXTI_Callback	40	static
+../Core/Src/pdm_callbacks.c:34:6:Data_Timeout_Callback	24	static
+../Core/Src/pdm_callbacks.c:49:6:Function_Delay_Callback	48	static
+../Core/Src/pdm_callbacks.c:89:6:Fuse_Timer_Callback	48	static

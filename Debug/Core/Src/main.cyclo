@@ -1,0 +1,17 @@
+main.c:115:5:main	1
+main.c:211:6:SystemClock_Config	4
+main.c:265:13:MX_ADC1_Init	7
+main.c:353:13:MX_ADC2_Init	7
+main.c:441:13:MX_CAN1_Init	2
+main.c:478:13:MX_CRC_Init	2
+main.c:504:13:MX_I2C1_Init	2
+main.c:538:13:MX_TIM1_Init	7
+main.c:612:13:MX_TIM2_Init	6
+main.c:671:13:MX_TIM3_Init	6
+main.c:730:13:MX_TIM6_Init	3
+main.c:768:13:MX_TIM8_Init	7
+main.c:841:13:MX_DMA_Init	1
+main.c:875:13:MX_GPIO_Init	1
+main.c:980:6:StartSetupTask	1
+main.c:1002:6:HAL_TIM_PeriodElapsedCallback	3
+main.c:1023:6:Error_Handler	1

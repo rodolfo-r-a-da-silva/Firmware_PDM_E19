@@ -277,9 +277,9 @@
 			osSemaphoreRelease(__HSEMAPHORE__);
 
 #define __PDM_FUNCTION_EDGE_CONDITION(__FUNC_STRUCT__, __INPUT__)														\
-		(((__FUNC_STRUCT__)->inEdge == Edge_Both)																		\
-			|| (((__FUNC_STRUCT__)->inEdge == Edge_Falling) && (*(__FUNC_STRUCT__)->inputs[__INPUT__] == Result_Low))	\
-			|| (((__FUNC_STRUCT__)->inEdge == Edge_Rising) && (*(__FUNC_STRUCT__)->inputs[__INPUT__] == Result_High)))
+		(((__FUNC_STRUCT__).inEdge[__INPUT__] == Edge_Both)																		\
+			|| (((__FUNC_STRUCT__).inEdge[__INPUT__] == Edge_Falling) && (*(__FUNC_STRUCT__).inputs[__INPUT__] == Result_False))	\
+			|| (((__FUNC_STRUCT__).inEdge[__INPUT__] == Edge_Rising) && (*(__FUNC_STRUCT__).inputs[__INPUT__] == Result_True)))
 
 #define __PDM_LINEAR_INTERPOLATION(__X__, __X0__, __X1__, __Y0__, __Y1__)						\
 		(((((__X__) - (__X0__)) * ((__Y1__) - (__Y0__))) / ((__X1__) - (__X0__))) + (__Y0__))
@@ -290,14 +290,14 @@
 				(__PDM_LINEAR_INTERPOLATION((__X__), (__X0__), (__X1__), (__Z10__), (__Z11__))))
 
 #define __PDM_OUT_SET_LEVEL(__OUT_STRUCT__)				\
-		HAL_GPIO_WritePin((__OUT_STRUCT__)->outputGPIO,	\
-		(__OUT_STRUCT__)->outputPin,					\
-		(__OUT_STRUCT__)->outputState)
+		HAL_GPIO_WritePin((__OUT_STRUCT__).outputGPIO,	\
+		(__OUT_STRUCT__).outputPin,					\
+		(__OUT_STRUCT__).outputState)
 
 #define __PDM_PWM_SET_COMPARE(__OUT_STRUCT__)						\
-		__HAL_TIM_SET_COMPARE((__OUT_STRUCT__)->pwmStruct->htim,	\
-		(__OUT_STRUCT__)->pwmStruct->timChannel,					\
-		(__OUT_STRUCT__)->pwmStruct->dutyCycle)
+		__HAL_TIM_SET_COMPARE((__OUT_STRUCT__).pwmStruct->htim,	\
+		(__OUT_STRUCT__).pwmStruct->timChannel,					\
+		(__OUT_STRUCT__).pwmStruct->dutyCycle)
 
 /*END MACROS*/
 
@@ -616,7 +616,7 @@ typedef struct{
 	uint8_t data[8];		//Data from data frame
 	uint8_t length;			//Number of data bytes
 	uint32_t id;			//Frame unique identification
-	PDM_Data_Source source;	//Indication if frame is from local readings or CAN bus
+	PDM_Interrupt_Source source;	//Indication if frame is from local readings or CAN bus
 }PDM_Data_Queue_Struct;
 
 typedef struct{
@@ -744,6 +744,7 @@ typedef struct{
 }PDM_Process_Thread_Struct;
 
 typedef struct{
+	int16_t* dataBuffer;
 	uint16_t* inputPins;
 	GPIO_TypeDef* inputGPIOs;
 	PDM_Output_Ctrl_Struct* outStruct;

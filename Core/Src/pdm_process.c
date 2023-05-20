@@ -15,7 +15,8 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 static uint8_t Function_Result_Process(PDM_Function_Struct* funcStruct);
 static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer);
 static void Data_Timeout_Callback(void* dataStruct);
-static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFlag, uint16_t* adcBuffer, uint16_t* dataBuffer);
+static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFlag, uint16_t* adcBuffer, int16_t* dataBuffer);
+static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type dataRead, int16_t* dataBuffer);
 
 /*BEGIN FUNCTIONS*/
 
@@ -50,13 +51,13 @@ void PDM_Process_Thread(void* threadStruct)
 
 	for(;;)
 	{
-		if(osMessageQueueGet(thrdStr->intQueueHandle, (void*) rxStruct, 0, osWaitForever) == osOK)
+		if(osMessageQueueGet(thrdStr->intQueueHandle, (void*) &rxStruct, 0, osWaitForever) == osOK)
 		{
 			switch(rxStruct.source)
 			{
 				case Interrupt_CAN:
 					//Try to convert data for each CAN data channel
-					processFlag = Channel_CAN_Process(&rxStruct, thrdStr->channels, thrdStr->nbrOfChannels);
+					processFlag = Channel_CAN_Process(thrdStr->channels, &rxStruct, thrdStr->nbrOfChannels);
 
 					break;
 
@@ -80,7 +81,7 @@ void PDM_Process_Thread(void* threadStruct)
 					Read_Analog_Inputs(thrdStr->htim, readingFlag, thrdStr->adcBuffer, dataBuffer);
 
 					//Check currents and fuse status for each output
-					Fuse_Check_Status(thrdStr->outStruct->fuseStruct, readingFlag[1], dataBuffer);
+					Fuse_Check_Status(thrdStr->outStruct, readingFlag[1], dataBuffer);
 
 					//Check if any channel uses local data and if yes, change channel value and update flag
 					processFlag = Channel_Local_Process(thrdStr->channels, readingFlag[1], dataBuffer);
@@ -123,25 +124,25 @@ static uint8_t Channel_CAN_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data
 	for(uint8_t i = CHANNEL_CAN_OFFSET; i < (CHANNEL_CAN_OFFSET+nbrOfChannels); i++)
 	{
 		//Continue "for loop" if CAN bus frame id doesn't match channel filter or channel isn't used for any conditions
-		if((dataStruct[i]->dataFilter != rxStruct->id)
-				|| (dataStruct[i]->inUse == IN_USE_NONE))
+		if((dataStruct[i].dataFilter != rxStruct->id)
+				|| (dataStruct[i].inUse == IN_USE_NONE))
 			continue;
 
 		//Get data from Queue according to data source
 		//Return if channel source isn't from CAN bus
-		switch(dataStruct[i]->source)
+		switch(dataStruct[i].source)
 		{
 			//For fixed position data in specific frame
 			//Will continue "for loop" if cast type is invalid
 			case Data_CAN_Fixed:
 			//{
-				if((dataStruct[i]->cast == Cast_Uint8) || (dataStruct[i]->cast == Cast_Int8))
-					aux[0] = rxStruct->data[dataStruct[i]->position];
+				if((dataStruct[i].cast == Cast_Uint8) || (dataStruct[i].cast == Cast_Int8))
+					aux[0] = rxStruct->data[dataStruct[i].position];
 
-				else if((dataStruct[i]->cast == Cast_Uint16) || (dataStruct[i]->cast == Cast_Int16))
+				else if((dataStruct[i].cast == Cast_Uint16) || (dataStruct[i].cast == Cast_Int16))
 				{
-					aux[0] = rxStruct->data[dataStruct[i]->position];
-					aux[1] = rxStruct->data[dataStruct[i]->position + 1];
+					aux[0] = rxStruct->data[dataStruct[i].position];
+					aux[1] = rxStruct->data[dataStruct[i].position + 1];
 				}
 
 				else
@@ -156,13 +157,13 @@ static uint8_t Channel_CAN_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data
 			//{
 				if((rxStruct->length != 4) && (rxStruct->length != 8))
 				{
-					if(dataStruct[i]->position == ((rxStruct->data[1] << 8) | rxStruct->data[0]))
+					if(dataStruct[i].position == ((rxStruct->data[1] << 8) | rxStruct->data[0]))
 					{
 						aux[0] = rxStruct->data[2];
 						aux[1] = rxStruct->data[3];
 					}
 
-					else if((dataStruct[i]->position == ((rxStruct->data[4] << 8) | rxStruct->data[5])) && (rxStruct->length == 8))
+					else if((dataStruct[i].position == ((rxStruct->data[4] << 8) | rxStruct->data[5])) && (rxStruct->length == 8))
 					{
 						aux[0] = rxStruct->data[6];
 						aux[1] = rxStruct->data[7];
@@ -184,8 +185,8 @@ static uint8_t Channel_CAN_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data
 
 		//Reset timer if data was received and timer was created correctly
 		//Set return flag to indicate received value
-		if(osTimerStart(dataStruct[i]->timer, pdMS_TO_TICKS(dataStruct[i]->timeout)) == osOK)
-			dataStruct[i]->timeoutFlag = CAN_Data_Refresh;
+		if(osTimerStart(dataStruct[i].timer, pdMS_TO_TICKS(dataStruct[i].timeout)) == osOK)
+			dataStruct[i].timeoutFlag = CAN_Data_Refresh;
 
 		//Reset value and set flag to timeout if timer cannot be started
 		else
@@ -195,14 +196,14 @@ static uint8_t Channel_CAN_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data
 		}
 
 		//Change previous state of data
-		dataStruct[i]->data[Data_Previous] = dataStruct[i]->data[Data_Current];
+		dataStruct[i].data[Data_Previous] = dataStruct[i].data[Data_Current];
 
 		//Cast received data to correct format
 		Data_Cast(dataStruct, aux);
 
 		//Set retVal if value has changed and CAN data is used in Functions or PWM
-		if(dataStruct[i]->data[Data_Previous] != dataStruct[i]->data[Data_Current])
-			retVal |= dataStruct[i]->inUse;
+		if(dataStruct[i].data[Data_Previous] != dataStruct[i].data[Data_Current])
+			retVal |= dataStruct[i].inUse;
 	}
 
 	return retVal;
@@ -245,22 +246,22 @@ static uint8_t Channel_Local_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Da
 	}
 
 	//Update MCU temperature Channel
-	dataStruct[CHANNEL_TEMP_MCU]->data[Data_Previous] = dataStruct[CHANNEL_TEMP_MCU]->data[Data_Current];
-	dataStruct[CHANNEL_TEMP_MCU]->data[Data_Current] = (int32_t) dataBuffer[Data_TempMCU];
+	dataStruct[CHANNEL_TEMP_MCU].data[Data_Previous] = dataStruct[CHANNEL_TEMP_MCU].data[Data_Current];
+	dataStruct[CHANNEL_TEMP_MCU].data[Data_Current] = (int32_t) dataBuffer[Data_TempMCU];
 
 	//Update retVal if data has changed
-	if(dataStruct[CHANNEL_TEMP_MCU]->data[Data_Previous] != dataStruct[CHANNEL_TEMP_MCU]->data[Data_Current])
-		retVal |= dataStruct[CHANNEL_TEMP_MCU]->inUse;
+	if(dataStruct[CHANNEL_TEMP_MCU].data[Data_Previous] != dataStruct[CHANNEL_TEMP_MCU].data[Data_Current])
+		retVal |= dataStruct[CHANNEL_TEMP_MCU].inUse;
 
 	//Place each read data into respective Channel
 	for(i = 0; j <= k; i++, j++)
 	{
-		dataStruct[j]->data[Data_Previous] = dataStruct[j]->data[Data_Current];
-		dataStruct[j]->data[Data_Current] = (int32_t) dataBuffer[i];
+		dataStruct[j].data[Data_Previous] = dataStruct[j].data[Data_Current];
+		dataStruct[j].data[Data_Current] = (int32_t) dataBuffer[i];
 
 		//Update retVal if data has changed
-		if(dataStruct[j]->data[Data_Previous] != dataStruct[j]->data[Data_Current])
-			retVal |= dataStruct[j]->inUse;
+		if(dataStruct[j].data[Data_Previous] != dataStruct[j].data[Data_Current])
+			retVal |= dataStruct[j].inUse;
 	}
 
 	return retVal;
@@ -281,14 +282,14 @@ static uint8_t Function_Input_Process(PDM_Function_Struct* funcStruct, PDM_Input
 	for(uint8_t i = FUNCTION_INPUT_OFFSET, j = 0; i < FUNCTION_INPUT_FINISH; i++, j++)
 	{
 		//Read input pin level and set data value
-		funcStruct[i]->result[Result_Next] = HAL_GPIO_ReadPin(inStruct->gpio[j], inStruct->pin[j]);
+		funcStruct[i].result[Result_Next] = HAL_GPIO_ReadPin(&inStruct->gpio[j], inStruct->pin[j]);
 
 		//Change value in Thread safe buffer
-		dataBuffer[Data_Input] |= (funcStruct[i]->result[Result_Next] << j);
+		dataBuffer[Data_Input] |= (funcStruct[i].result[Result_Next] << j);
 
 		//Skip if Input Pin is unused or next and current Results are equal
-		if((funcStruct[i]->inUse == IN_USE_NONE)
-				|| (funcStruct[i]->result[Result_Next] == funcStruct[i]->result[Result_Current]))
+		if((funcStruct[i].inUse == IN_USE_NONE)
+				|| (funcStruct[i].result[Result_Next] == funcStruct[i].result[Result_Current]))
 			continue;
 
 		retVal |= Function_Result_Process(&funcStruct[i]);
@@ -313,18 +314,18 @@ static uint8_t Function_Fuse_Process(PDM_Function_Struct* funcStruct, PDM_Output
 	for(uint8_t i = FUNCTION_FUSE_OFFSET, j = 0; i < FUNCTION_FUSE_FINISH; i++ ,j++)
 	{
 		//Place state inside result
-		if(outStruct[j]->fuseStruct->status == Fuse_Closed)
-			funcStruct[i]->result[Result_Next] = 0;
+		if(outStruct[j].fuseStruct->status == Fuse_Closed)
+			funcStruct[i].result[Result_Next] = 0;
 
 		else
-			funcStruct[i]->result[Result_Next] = 1;
+			funcStruct[i].result[Result_Next] = 1;
 
 		//Change value in Thread safe buffer
-		dataBuffer[Data_Fuse] |= (funcStruct[i]->result[Result_Next] << j);
+		dataBuffer[Data_Fuse] |= (funcStruct[i].result[Result_Next] << j);
 
 		//Skip if Input Pin is unused or next and current Results are equal
-		if((funcStruct[i]->inUse == IN_USE_NONE)
-				|| (funcStruct[i]->result[Result_Next] == funcStruct[i]->result[Result_Current]))
+		if((funcStruct[i].inUse == IN_USE_NONE)
+				|| (funcStruct[i].result[Result_Next] == funcStruct[i].result[Result_Current]))
 			continue;
 
 		retVal |= Function_Result_Process(&funcStruct[i]);
@@ -344,85 +345,85 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 	for(uint8_t i = FUNCTION_CUSTOM_OFFSET, j = 0; j < nbrOfFunctions; i++, j++)
 	{
 		//Continue "for loop" if Function is unused
-		if((funcStruct[i]->inUse == IN_USE_NONE)
-				|| ((*funcStruct[i]->result[FuncIn_Current1] == *funcStruct[i]->result[FuncIn_Previous1])
-						&& (*funcStruct[i]->result[FuncIn_Current2] == *funcStruct[i]->result[FuncIn_Previous2])
-						&& (*funcStruct[i]->result[FuncIn_Current3] == *funcStruct[i]->result[FuncIn_Previous3])
-						&& (*funcStruct[i]->result[FuncIn_Current4] == *funcStruct[i]->result[FuncIn_Previous4])))
+		if((funcStruct[i].inUse == IN_USE_NONE)
+				|| ((funcStruct[i].result[FuncIn_Current1] == funcStruct[i].result[FuncIn_Previous1])
+						&& (funcStruct[i].result[FuncIn_Current2] == funcStruct[i].result[FuncIn_Previous2])
+						&& (funcStruct[i].result[FuncIn_Current3] == funcStruct[i].result[FuncIn_Previous3])
+						&& (funcStruct[i].result[FuncIn_Current4] == funcStruct[i].result[FuncIn_Previous4])))
 			continue;
 
 		//Reset update flag, set only if there are state changes
 		updateFlag = 0;
 
 		//Process each result based on Function Type
-		switch(funcStruct[i]->type)
+		switch(funcStruct[i].type)
 		{
 			case Function_NOT:
-				funcStruct[i]->result[Result_Next] = !(*funcStruct[i]->inputs[FuncIn_Current1]);
+				funcStruct[i].result[Result_Next] = !(*funcStruct[i].inputs[FuncIn_Current1]);
 				updateFlag = 1;
 				break;
 
 			case Function_AND:
 				//Set result to allow true results and set flag
-				funcStruct[i]->result[Result_Next] = Result_True;
+				funcStruct[i].result[Result_Next] = Result_True;
 				updateFlag = 1;
 
 				//AND operation with each Function input
-				for(uint8_t k = 0; k < funcStruct[i]->nbrOfInputs; k++)
-					funcStruct[i]->result[Result_Next] = (funcStruct[i]->result[Result_Next] && *funcStruct[i]->inputs[k*2]);
+				for(uint8_t k = 0; k < funcStruct[i].nbrOfInputs; k++)
+					funcStruct[i].result[Result_Next] = (funcStruct[i].result[Result_Next] && *funcStruct[i].inputs[k*2]);
 
 				break;
 
 			case Function_OR:
 				//Reset result to allow false results and set flag
-				funcStruct[i]->result[Result_Next] = Result_False;
+				funcStruct[i].result[Result_Next] = Result_False;
 				updateFlag = 1;
 
 				//OR operation with each Function input
-				for(uint8_t k = 0; k < funcStruct[i]->nbrOfInputs; k++)
-					funcStruct[i]->result[Result_Next] = (funcStruct[i]->result[Result_Next] || *funcStruct[i]->inputs[k*2]);
+				for(uint8_t k = 0; k < funcStruct[i].nbrOfInputs; k++)
+					funcStruct[i].result[Result_Next] = (funcStruct[i].result[Result_Next] || *funcStruct[i].inputs[k*2]);
 
 				break;
 
 			case Function_XOR:
-				funcStruct[i]->result[Result_Next] = ((*funcStruct[i]->inputs[FuncIn_Current1] || *funcStruct[i]->inputs[FuncIn_Current2])
-												&& !(*funcStruct[i]->inputs[FuncIn_Current1] && *funcStruct[i]->inputs[FuncIn_Current2]));
+				funcStruct[i].result[Result_Next] = ((*funcStruct[i].inputs[FuncIn_Current1] || *funcStruct[i].inputs[FuncIn_Current2])
+												&& !(*funcStruct[i].inputs[FuncIn_Current1] && *funcStruct[i].inputs[FuncIn_Current2]));
 				updateFlag = 1;
 				break;
 
 			case Function_BitAND:
-				funcStruct[i]->result[Result_Next] = (funcStruct[i]->inputs[FuncIn_Current1] & funcStruct[i]->inputs[FuncIn_Current2]);
+				funcStruct[i].result[Result_Next] = (*funcStruct[i].inputs[FuncIn_Current1] & *funcStruct[i].inputs[FuncIn_Current2]);
 				updateFlag = 1;
 				break;
 
 			case Function_Equals:
-				funcStruct[i]->result[Result_Next] = (*funcStruct[i]->inputs[FuncIn_Current1] == *funcStruct[i]->inputs[FuncIn_Current2]);
+				funcStruct[i].result[Result_Next] = (*funcStruct[i].inputs[FuncIn_Current1] == *funcStruct[i].inputs[FuncIn_Current2]);
 				updateFlag = 1;
 				break;
 
 			case Function_Less:
-				funcStruct[i]->result[Result_Next] = (*funcStruct[i]->inputs[FuncIn_Current1] < *funcStruct[i]->inputs[FuncIn_Current2]);
+				funcStruct[i].result[Result_Next] = (*funcStruct[i].inputs[FuncIn_Current1] < *funcStruct[i].inputs[FuncIn_Current2]);
 				updateFlag = 1;
 				break;
 
 			case Function_More:
-				funcStruct[i]->result[Result_Next] = (*funcStruct[i]->inputs[FuncIn_Current1] > *funcStruct[i]->inputs[FuncIn_Current2]);
+				funcStruct[i].result[Result_Next] = (*funcStruct[i].inputs[FuncIn_Current1] > *funcStruct[i].inputs[FuncIn_Current2]);
 				updateFlag = 1;
 				break;
 
 			case Function_Hysteresis:
 				//Set flag if there is any result change
 				//Check low value
-				if(*funcStruct[i]->inputs[FuncIn_Current1] < *funcStruct[i]->inputs[FuncIn_Current2])
+				if(*funcStruct[i].inputs[FuncIn_Current1] < *funcStruct[i].inputs[FuncIn_Current2])
 				{
-					funcStruct[i]->result[Result_Next] = Result_False;
+					funcStruct[i].result[Result_Next] = Result_False;
 					updateFlag = 1;
 				}
 
 				//Check high value
-				else if(*funcStruct[i]->inputs[FuncIn_Current1] > *funcStruct[i]->inputs[FuncIn_Current3])
+				else if(*funcStruct[i].inputs[FuncIn_Current1] > *funcStruct[i].inputs[FuncIn_Current3])
 				{
-					funcStruct[i]->result[Result_Next] = Result_True;
+					funcStruct[i].result[Result_Next] = Result_True;
 					updateFlag = 1;
 				}
 
@@ -430,7 +431,7 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 
 			case Function_Blink:
 				//Set flag and set next equal to input result, Function output will blink while next result is true
-				funcStruct[i]->result[Result_Next] = *funcStruct[i]->inputs[FuncIn_Current1];
+				funcStruct[i].result[Result_Next] = *funcStruct[i].inputs[FuncIn_Current1];
 				updateFlag = 1;
 
 				break;
@@ -440,14 +441,14 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 				//Check for pulse stop condition
 				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current2))
 				{
-					funcStruct[i]->result[Result_Next] = Result_False;
+					funcStruct[i].result[Result_Next] = Result_False;
 					updateFlag = 1;
 				}
 
 				//Check for change in input state and and correct input edge
 				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
 				{
-					funcStruct[i]->result[Result_Next] = Result_True;
+					funcStruct[i].result[Result_Next] = Result_True;
 					updateFlag = 1;
 				}
 
@@ -458,14 +459,14 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 				//Reset result if input state 1 has changed and has correct edge
 				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
 				{
-					funcStruct[i]->result[Result_Next] = Result_False;
+					funcStruct[i].result[Result_Next] = Result_False;
 					updateFlag = 1;
 				}
 
 				//Set result if input state 2 has changed and has correct edge
 				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current2))
 				{
-					funcStruct[i]->result[Result_Next] = Result_True;
+					funcStruct[i].result[Result_Next] = Result_True;
 					updateFlag = 1;
 				}
 
@@ -476,21 +477,21 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 				//Override for false output
 				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current3))
 				{
-					funcStruct[i]->result[Result_Next] = Result_False;
+					funcStruct[i].result[Result_Next] = Result_False;
 					updateFlag = 1;
 				}
 
 				//Override for true output
 				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current2))
 				{
-					funcStruct[i]->result[Result_Next] = Result_True;
+					funcStruct[i].result[Result_Next] = Result_True;
 					updateFlag = 1;
 				}
 
 				//Perform not operation on next result if input state changed and has correct edge
 				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
 				{
-					funcStruct[i]->result[Result_Next] = !funcStruct[i]->result[Result_Next];
+					funcStruct[i].result[Result_Next] = !funcStruct[i].result[Result_Next];
 					updateFlag = 1;
 				}
 
@@ -500,54 +501,54 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 				//Update retVal if there is any change in value
 				//First override
 				if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current3))
-					funcStruct[i]->result[Result_Current] = funcStruct[i]->consts[FuncConst_Ovrr1];
+					funcStruct[i].result[Result_Current] = funcStruct[i].consts[FuncConst_Ovrr1];
 
 				//Second override
 				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current4))
-					funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_Ovrr2];
+					funcStruct[i].result[Result_Next] = funcStruct[i].consts[FuncConst_Ovrr2];
 
 				//Decrement if input state 1 has changed and has correct edge
 				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current1))
 				{
 					//Check if channel isn't already at minimum count
-					funcStruct[i]->result[Result_Next] -= funcStruct[i]->consts[FuncConst_Dec];
+					funcStruct[i].result[Result_Next] -= funcStruct[i].consts[FuncConst_Dec];
 
 					//Check if count is below minimum count
-					if(funcStruct[i]->result[Result_Next] < funcStruct[i]->consts[FuncConst_Low])
+					if(funcStruct[i].result[Result_Next] < funcStruct[i].consts[FuncConst_Low])
 					{
 						//Counter wrap to highest count
-						if((funcStruct[i]->countWrap & COUNTER_WRAP_TO_HIGH) == COUNTER_WRAP_TO_HIGH)
-							funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_Ovrr1];
+						if((funcStruct[i].countWrap & COUNTER_WRAP_TO_HIGH) == COUNTER_WRAP_TO_HIGH)
+							funcStruct[i].result[Result_Next] = funcStruct[i].consts[FuncConst_Ovrr1];
 
 						//Set to maximum count if wrap is disabled
 						else
-							funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_Low];
+							funcStruct[i].result[Result_Next] = funcStruct[i].consts[FuncConst_Low];
 					}
 				}
 
 				//Increment if input state 2 has changed and has correct edge
 				else if(__PDM_FUNCTION_EDGE_CONDITION(funcStruct[i], FuncIn_Current2))
 				{
-					funcStruct[i]->result[Result_Next] += funcStruct[i]->consts[FuncConst_Inc];
+					funcStruct[i].result[Result_Next] += funcStruct[i].consts[FuncConst_Inc];
 
 					//Check if count is above maximum count
-					if(funcStruct[i]->result[Result_Next] > funcStruct[i]->consts[FuncConst_High])
+					if(funcStruct[i].result[Result_Next] > funcStruct[i].consts[FuncConst_High])
 					{
 						//Counter wrap to lowest count if enabled
-						if((funcStruct[i]->countWrap & COUNTER_WRAP_TO_LOW) == COUNTER_WRAP_TO_LOW)
-							funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_Ovrr2];
+						if((funcStruct[i].countWrap & COUNTER_WRAP_TO_LOW) == COUNTER_WRAP_TO_LOW)
+							funcStruct[i].result[Result_Next] = funcStruct[i].consts[FuncConst_Ovrr2];
 
 						//Set to maximum count if wrap is disabled
 						else
-							funcStruct[i]->result[Result_Next] = funcStruct[i]->consts[FuncConst_High];
+							funcStruct[i].result[Result_Next] = funcStruct[i].consts[FuncConst_High];
 					}
 				}
 
 				//Set current count and retVal if it has changed
-				if(funcStruct[i]->result[Result_Current] != funcStruct[i]->result[Result_Next])
+				if(funcStruct[i].result[Result_Current] != funcStruct[i].result[Result_Next])
 				{
-					funcStruct[i]->result[Result_Current] = funcStruct[i]->result[Result_Next];
-					retVal |= funcStruct[i]->inUse;
+					funcStruct[i].result[Result_Current] = funcStruct[i].result[Result_Next];
+					retVal |= funcStruct[i].inUse;
 				}
 
 
@@ -559,7 +560,7 @@ static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t 
 
 		//Process result inversion and delay if there was an update
 		if(updateFlag == 1)
-			retVal |= Function_Result_Process(funcStruct[i]);
+			retVal |= Function_Result_Process(&funcStruct[i]);
 	}
 
 	return retVal;
@@ -670,7 +671,7 @@ static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer)
 //PDM_Data_Type* readingFlag - Pointer to array containing flag of data to read now and flag of last processed data
 //uint16_t* adcBuffer - Pointer to buffer used by ADC to store read inputs
 //uint16_t* dataBuffer - Pointer to Thread safe data buffer
-static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFlag, uint16_t* adcBuffer, uint16_t* dataBuffer)
+static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFlag, uint16_t* adcBuffer, int16_t* dataBuffer)
 {
 	//Convert ADC value based on selected reading and sets delay for next reading
 	switch(readingFlag[0])
@@ -783,22 +784,22 @@ static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFl
 //PDM_Output_Ctrl_Struct* outStruct - pointer to array of output structs
 //PDM_Data_Type dataRead - Flag indicating which bank of output Fuses to check
 //uint16_t* dataBuffer - Pointer to Thread safe data buffer
-static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type dataRead, uint16_t* dataBuffer)
+static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type dataRead, int16_t* dataBuffer)
 {
-	uint8_t i[2];	//fuseStruct buffer and dataBuffer minimum and maximum index
+	uint8_t i, j;	//fuseStruct buffer and dataBuffer minimum and maximum index
 
 	//Select first output to be checked base on last reading
 	//Will return if no current was read
 	switch(dataRead)
 	{
 		case Data_Type_Current0:
-			i[0] = Data_Curr1;
-			i[1] = Data_Curr15;
+			i = Data_Curr1;
+			j = Data_Curr15;
 			break;
 
 		case Data_Type_Current1:
-			i[0] = Data_Curr2;
-			i[1] = Data_Curr16;
+			i = Data_Curr2;
+			j = Data_Curr16;
 			break;
 
 		default:
@@ -806,47 +807,47 @@ static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type d
 	}
 
 	//Check fuse status for each even or odd number output
-	for(; i[0] <= i[1]; i[0]++)
+	for(; i <= j; i++)
 	{
 		//Check if fuse is enabled
 		//Skip current execution if fuse is disabled
-		if(outStruct[i[0]]->fuseEnable == Fuse_Disabled)
+		if(outStruct[i].fuseEnable == Fuse_Disabled)
 			continue;
 
 		//Enters if current is below allowed and previous fuse status was waiting for circuit opening
-		if((dataBuffer[i[0]] <= outStruct[i[0]]->fuseStruct->maxCurrent) && (outStruct[i[0]]->fuseStruct->status == Fuse_Wait))
+		if((dataBuffer[i] <= outStruct[i].fuseStruct->maxCurrent) && (outStruct[i].fuseStruct->status == Fuse_Wait))
 		{
-			outStruct[i[0]]->fuseStruct->status = Fuse_Closed;	//Set fuse status to closed circuit
-			outStruct[i[0]]->fuseStruct->retryCount = 0;	//Reset number of re-closing retry count
+			outStruct[i].fuseStruct->status = Fuse_Closed;	//Set fuse status to closed circuit
+			outStruct[i].fuseStruct->retryCount = 0;	//Reset number of re-closing retry count
 
-			if(osTimerIsRunning(outStruct[i[0]]->fuseStruct->osTimer) == 1)
-				osTimerStop(outStruct[i[0]]->fuseStruct->osTimer);	//Stop timeout timer
+			if(osTimerIsRunning(outStruct[i].fuseStruct->osTimer) == 1)
+				osTimerStop(outStruct[i].fuseStruct->osTimer);	//Stop timeout timer
 		}
 
 		//Check if timer isn't already running
-		else if(osTimerIsRunning(outStruct[i[0]]->fuseStruct->osTimer) == 0)
+		else if(osTimerIsRunning(outStruct[i].fuseStruct->osTimer) == 0)
 		{
 			//Enter if current is above allowed and fuse status indicates closed circuit
-			if((dataBuffer[i[0]] > outStruct[i[0]]->fuseStruct->maxCurrent) && (outStruct[i[0]]->fuseStruct->status != Fuse_Open))
+			if((dataBuffer[i] > outStruct[i].fuseStruct->maxCurrent) && (outStruct[i].fuseStruct->status != Fuse_Open))
 			{
-				outStruct[i[0]]->fuseStruct->status = Fuse_Wait;
+				outStruct[i].fuseStruct->status = Fuse_Wait;
 
 				//Set waiting time for disarming for the first time
-				if(outStruct[i[0]]->fuseStruct->retryCount == 0)
-					osTimerStart(outStruct[i[0]]->fuseStruct->osTimer,
-							pdMS_TO_TICKS(outStruct[i[0]]->fuseStruct->timeout[Fuse_Time_First]));
+				if(outStruct[i].fuseStruct->retryCount == 0)
+					osTimerStart(outStruct[i].fuseStruct->osTimer,
+							pdMS_TO_TICKS(outStruct[i].fuseStruct->timeout[Fuse_Time_First]));
 
 				//Set waiting time for disarming after the first attempt
 				else
-					osTimerStart(outStruct[i[0]]->fuseStruct->osTimer,
-							pdMS_TO_TICKS(outStruct[i[0]]->fuseStruct->timeout[Fuse_Time_Open]));
+					osTimerStart(outStruct[i].fuseStruct->osTimer,
+							pdMS_TO_TICKS(outStruct[i].fuseStruct->timeout[Fuse_Time_Open]));
 			}
 
 			//Enter if there are re-closing retry attempts available and fuse status is open
-			else if(((outStruct[i[0]]->fuseStruct->retryCount < outStruct[i[0]]->fuseStruct->retry)
-					|| (outStruct[i[0]]->fuseStruct->retry == FUSE_RETRY_INF))
-					&& (outStruct[i[0]]->fuseStruct->status == Fuse_Open))
-				osTimerStart(outStruct[i[0]]->fuseStruct->osTimer, pdMS_TO_TICKS(outStruct[i[0]]->fuseStruct->timeout[Fuse_Time_Close]));
+			else if(((outStruct[i].fuseStruct->retryCount < outStruct[i].fuseStruct->retry)
+					|| (outStruct[i].fuseStruct->retry == FUSE_RETRY_INF))
+					&& (outStruct[i].fuseStruct->status == Fuse_Open))
+				osTimerStart(outStruct[i].fuseStruct->osTimer, pdMS_TO_TICKS(outStruct[i].fuseStruct->timeout[Fuse_Time_Close]));
 		}
 	}
 

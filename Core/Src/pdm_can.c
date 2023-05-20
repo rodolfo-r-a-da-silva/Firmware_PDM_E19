@@ -90,13 +90,13 @@ void PDM_CAN_Thread_Receive_Data(void* threadStruct)
 		if(HAL_CAN_GetRxMessage(thrdStr->canConfig->hcan, CAN_RX_FIFO0, &rxHeader, rxData) == HAL_OK)
 		{
 
-			if(rxHeader->IDE == CAN_ID_STD)
-				rxStruct.id = (rxHeader->StdId << 3) | rxHeader->IDE;
+			if(rxHeader.IDE == CAN_ID_STD)
+				rxStruct.id = (rxHeader.StdId << 3) | rxHeader.IDE;
 
 			else
-				rxStruct.id = (rxHeader->ExtId << 3) | rxHeader->IDE;
+				rxStruct.id = (rxHeader.ExtId << 3) | rxHeader.IDE;
 
-			rxStruct.length = rxHeader->DLC;
+			rxStruct.length = rxHeader.DLC;
 
 			for(uint8_t i = 0; i < rxStruct.length; i++)
 				rxStruct.data[i] = rxData[i];
@@ -105,13 +105,13 @@ void PDM_CAN_Thread_Receive_Data(void* threadStruct)
 
 			if(rxStruct.id == CAN_CONFIG_FILTER)	//Check if configuration data was received
 			{
-				osMessageQueuePut(thrdStr->chnQueueHandle, (void*) rxStruct, 0, 0);
+				osMessageQueuePut(thrdStr->chnQueueHandle, (void*) &rxStruct, 0, 0);
 				osSemaphoreRelease(thrdStr->cfgSemaphoreHandle);	//Unblocks Configuration processing thread
 			}
 
 			else
 			{
-				osMessageQueuePut(thrdStr->chnQueueHandle, (void*) rxStruct, 0, 0);
+				osMessageQueuePut(thrdStr->chnQueueHandle, (void*) &rxStruct, 0, 0);
 				osSemaphoreRelease(thrdStr->chnSemaphoreHandle);	//Unblocks Output processing thread
 			}
 		}

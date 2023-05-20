@@ -1,2 +1,5 @@
-../Core/Src/pdm_driver_control.c:11:6:PDM_Input_Process	8	static
-../Core/Src/pdm_driver_control.c:51:6:PDM_Output_Process	32	static
+../Core/Src/pdm_driver_control.c:18:6:PDM_Output_Thread	32	static
+../Core/Src/pdm_driver_control.c:50:13:Output_Set_State	24	static
+../Core/Src/pdm_driver_control.c:110:13:PWM_Set_DutyCycle	24	static
+../Core/Src/pdm_driver_control.c:151:13:PWM_Set_Soft_Start	24	static
+../Core/Src/pdm_driver_control.c:181:17:PWM_Set_Map_DutyCycle	32	static

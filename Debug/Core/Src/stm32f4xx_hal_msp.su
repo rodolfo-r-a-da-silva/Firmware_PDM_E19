@@ -8,5 +8,5 @@
 ../Core/Src/stm32f4xx_hal_msp.c:379:6:HAL_I2C_MspInit	48	static
 ../Core/Src/stm32f4xx_hal_msp.c:415:6:HAL_I2C_MspDeInit	16	static
 ../Core/Src/stm32f4xx_hal_msp.c:446:6:HAL_TIM_Base_MspInit	40	static
-../Core/Src/stm32f4xx_hal_msp.c:627:6:HAL_TIM_MspPostInit	56	static
-../Core/Src/stm32f4xx_hal_msp.c:721:6:HAL_TIM_Base_MspDeInit	16	static
+../Core/Src/stm32f4xx_hal_msp.c:613:6:HAL_TIM_MspPostInit	56	static
+../Core/Src/stm32f4xx_hal_msp.c:707:6:HAL_TIM_Base_MspDeInit	16	static
