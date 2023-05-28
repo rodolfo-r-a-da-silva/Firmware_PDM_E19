@@ -59,12 +59,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define SEL1_Pin GPIO_PIN_2
-#define SEL1_GPIO_Port GPIOE
-#define SEL0_Pin GPIO_PIN_3
-#define SEL0_GPIO_Port GPIOE
-#define FAULTRST_Pin GPIO_PIN_4
+#define FAULTRST_Pin GPIO_PIN_2
 #define FAULTRST_GPIO_Port GPIOE
+#define SEL1_Pin GPIO_PIN_3
+#define SEL1_GPIO_Port GPIOE
+#define SEL0_Pin GPIO_PIN_4
+#define SEL0_GPIO_Port GPIOE
 #define SEN_Pin GPIO_PIN_5
 #define SEN_GPIO_Port GPIOE
 #define INPUT1_Pin GPIO_PIN_0

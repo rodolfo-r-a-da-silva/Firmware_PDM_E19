@@ -337,7 +337,7 @@ __weak void PDM_Hard_Code_Config()
 
 static void Output_Reset_State()
 {
-	HAL_GPIO_WritePin(FAULTRST_GPIO_Port, FAULTRST_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(FAULTRST_GPIO_Port, FAULTRST_Pin, GPIO_PIN_RESET);
 
 	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
 		memset(&outputStruct[i], '\0', sizeof(Output_Control_Struct));
