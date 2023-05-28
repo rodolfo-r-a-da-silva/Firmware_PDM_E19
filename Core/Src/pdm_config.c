@@ -269,7 +269,7 @@ __weak void PDM_Hard_Code_Config()
 
 	//Output 5 - WBO2
 	outputStruct[4].outEnable[0] = Output_Enabled;
-	outputStruct[4].inputEnable[0] = 0x0021;
+	outputStruct[4].inputEnable[0] = 0x0020;
 	outputStruct[4].inputLevels[0] = 0x0000;
 
 	//Output 6 - CMP e Pressão de Combustível
