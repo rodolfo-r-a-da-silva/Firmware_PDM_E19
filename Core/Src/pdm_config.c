@@ -319,13 +319,13 @@ __weak void PDM_Hard_Code_Config()
 
 	//Output 15 - Buck DRS
 	outputStruct[14].outEnable[0] = Output_Enabled;
-	outputStruct[14].inputEnable[0] = 0x0021;
-	outputStruct[14].inputLevels[0] = 0x0001;
+	outputStruct[14].inputEnable[0] = 0x0028;
+	outputStruct[14].inputLevels[0] = 0x0008;
 
 	//Output 16 - Buck DAQ
 	outputStruct[15].outEnable[0] = Output_Enabled;
-	outputStruct[15].inputEnable[0] = 0x0021;
-	outputStruct[15].inputLevels[0] = 0x0001;
+	outputStruct[15].inputEnable[0] = 0x0028;
+	outputStruct[15].inputLevels[0] = 0x0008;
 
 	canConfig.baudRate = CAN_1000kbps;
 
