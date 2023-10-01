@@ -9,6 +9,7 @@
 
 /*BEGIN PERIPHERAL CALLBACK FUNCTIONS*/
 
+//Callback for received CAN messages
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
 	osSemaphoreRelease(canRxSemaphoreHandle);	//Release semaphore to PDM_CAN_Thread_Receive_Data Thread
@@ -16,6 +17,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	return;
 }
 
+//Callback for input pins
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	PDM_Data_Queue_Struct data = {.source = Interrupt_Gpio};
@@ -26,18 +28,29 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	return;
 }
 
+//Callback for soft start last duty cycle value update
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+{
+	uint8_t source = PROCESS_PWM_SS;
+
+	//Send process source to Output Thread
+	osMessageQueuePut(outQueueHandle, &source, 0, 0);
+
+	return;
+}
+
 /*END PERIPHERAL CALLBACK FUNCTIONS*/
 
 /*BEGIN RTOS CALLBACK FUNCTIONS*/
 
 //Function that indicates data reception timeout and places predefined value if configured
-void Data_Timeout_Callback(void* dataStruct)
+void PDM_Data_Timeout_Callback(void* dataStruct)
 {
 	PDM_Data_Channel_Struct* dataStr = (PDM_Data_Channel_Struct*) dataStruct;
 
 	//Change data value if timeout happens
 	if(dataStr->keep == Data_Reset)
-		Data_Cast(dataStr, (uint8_t*) &dataStr->defaultVal);
+		PDM_Data_Cast(dataStr, (uint8_t*) &dataStr->defaultVal);
 
 	//Set flag indicating timeout
 	dataStr->timeoutFlag = CAN_Data_Timeout;
@@ -46,7 +59,7 @@ void Data_Timeout_Callback(void* dataStruct)
 }
 
 //Function to process new results after delay periods
-void Function_Delay_Callback(void* callbackStruct)
+void PDM_Function_Delay_Callback(void* callbackStruct)
 {
 	PDM_Function_Struct* cllbckStr = (PDM_Function_Struct*) callbackStruct;
 
@@ -86,7 +99,7 @@ void Function_Delay_Callback(void* callbackStruct)
 	return;
 }
 
-void Fuse_Timer_Callback(void* callbackStruct)
+void PDM_Fuse_Timer_Callback(void* callbackStruct)
 {
 	PDM_Output_Fuse_Struct* cllbckStr = (PDM_Output_Fuse_Struct*) callbackStruct;
 

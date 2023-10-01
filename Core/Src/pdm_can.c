@@ -394,8 +394,8 @@ static HAL_StatusTypeDef Tx_Fixed(CAN_HandleTypeDef* hcan, PDM_CAN_TxMsgType dat
 
 			txData[0] = dataBuffer[Data_Input] >> 8;
 			txData[1] = dataBuffer[Data_Input] & 0xff;
-			txData[2] = dataBuffer[Data_Output] >> 8;
-			txData[3] = dataBuffer[Data_Output] & 0xff;
+			txData[2] = dataBuffer[Data_Output1] >> 8;
+			txData[3] = dataBuffer[Data_Output1] & 0xff;
 			txData[4] = dataBuffer[Data_Fuse] >> 8;
 			txData[5] = dataBuffer[Data_Fuse] & 0xff;
 			break;

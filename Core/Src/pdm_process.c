@@ -13,12 +13,59 @@ static uint8_t Function_Input_Process(PDM_Function_Struct* dataStruct, PDM_Input
 static uint8_t Function_Fuse_Process(PDM_Function_Struct* funcStruct, PDM_Output_Ctrl_Struct* outStruct, int16_t* dataBuffer);
 static uint8_t Function_Custom_Process(PDM_Function_Struct* funcStruct, uint8_t nbrOfFunctions);
 static uint8_t Function_Result_Process(PDM_Function_Struct* funcStruct);
-static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer);
-static void Data_Timeout_Callback(void* dataStruct);
 static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFlag, uint16_t* adcBuffer, int16_t* dataBuffer);
-static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type dataRead, int16_t* dataBuffer);
+static void Fuse_Check_Status(PDM_Output_Fuse_Struct* fuseStruct, PDM_Data_Type dataRead, int16_t* dataBuffer);
 
 /*BEGIN FUNCTIONS*/
+
+//Cast read data to int32_t inside Channel struct
+//PDM_Data_Channel_Struct* dataStruct - Pointer to Channel struct
+//uint8_t* buffer - Pointer to buffer where data is stored
+void PDM_Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer)
+{
+	uint8_t aux = 0;
+
+	//Cast data read from CAN bus to accommodate correct negative and positive values
+	//Use data mask in case of unsigned data and byte swap in case of 16 bit data
+	switch(dataStruct->cast)
+	{
+		case Cast_Uint8:
+			dataStruct->data[Data_Current] = (int32_t) (buffer[0] & dataStruct->mask);
+			break;
+
+		case Cast_Int8:
+			dataStruct->data[Data_Current] = (int32_t) ((int8_t) buffer[0]);
+			break;
+
+		case Cast_Uint16:
+
+			if(dataStruct->alignment == Alignment_Swap)
+			{
+				aux = buffer[0];
+				buffer[0] = buffer[1];
+				buffer[1] = aux;
+			}
+
+			dataStruct->data[Data_Current] = (int32_t) ((uint16_t) ((buffer[0] << 8) | buffer[1]) & dataStruct->mask);
+
+			break;
+
+		case Cast_Int16:
+
+			if(dataStruct->alignment == Alignment_Swap)
+			{
+				aux = buffer[0];
+				buffer[0] = buffer[1];
+				buffer[1] = aux;
+			}
+
+			dataStruct->data[Data_Current] = (int32_t) ((int16_t) ((buffer[0] << 8) | buffer[1]));
+
+			break;
+	}
+
+	return;
+}
 
 /*END FUNCTIONS*/
 
@@ -81,7 +128,7 @@ void PDM_Process_Thread(void* threadStruct)
 					Read_Analog_Inputs(thrdStr->htim, readingFlag, thrdStr->adcBuffer, dataBuffer);
 
 					//Check currents and fuse status for each output
-					Fuse_Check_Status(thrdStr->outStruct, readingFlag[1], dataBuffer);
+					Fuse_Check_Status(thrdStr->fuseStruct, readingFlag[1], dataBuffer);
 
 					//Check if any channel uses local data and if yes, change channel value and update flag
 					processFlag = Channel_Local_Process(thrdStr->channels, readingFlag[1], dataBuffer);
@@ -94,6 +141,13 @@ void PDM_Process_Thread(void* threadStruct)
 					break;
 			}
 		}
+
+		if((processFlag & PROCESS_FUNCTION) == PROCESS_FUNCTION)
+			processFlag |= Function_Custom_Process(thrdStr->functions, thrdStr->nbrOfFunctions);
+
+		if(((processFlag & PROCESS_OUTPUT) == PROCESS_OUTPUT)
+				|| ((processFlag & PROCESS_PWM) == PROCESS_PWM))
+			osMessageQueuePut(thrdStr->outQueueHandle, &processFlag, 0, 0);
 
 		processFlag = 0;
 
@@ -191,7 +245,7 @@ static uint8_t Channel_CAN_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data
 		//Reset value and set flag to timeout if timer cannot be started
 		else
 		{
-			Data_Timeout_Callback((void*) dataStruct);
+			PDM_Data_Timeout_Callback((void*) dataStruct);
 			continue;
 		}
 
@@ -199,7 +253,7 @@ static uint8_t Channel_CAN_Process(PDM_Data_Channel_Struct* dataStruct, PDM_Data
 		dataStruct[i].data[Data_Previous] = dataStruct[i].data[Data_Current];
 
 		//Cast received data to correct format
-		Data_Cast(dataStruct, aux);
+		PDM_Data_Cast(dataStruct, aux);
 
 		//Set retVal if value has changed and CAN data is used in Functions or PWM
 		if(dataStruct[i].data[Data_Previous] != dataStruct[i].data[Data_Current])
@@ -314,7 +368,7 @@ static uint8_t Function_Fuse_Process(PDM_Function_Struct* funcStruct, PDM_Output
 	for(uint8_t i = FUNCTION_FUSE_OFFSET, j = 0; i < FUNCTION_FUSE_FINISH; i++ ,j++)
 	{
 		//Place state inside result
-		if(outStruct[j].fuseStruct->status == Fuse_Closed)
+		if(*outStruct[j].fuseSatus == Fuse_Closed)
 			funcStruct[i].result[Result_Next] = 0;
 
 		else
@@ -616,55 +670,6 @@ static uint8_t Function_Result_Process(PDM_Function_Struct* funcStruct)
 	return retVal;
 }
 
-//Cast read data to int32_t inside Channel struct
-//PDM_Data_Channel_Struct* dataStruct - Pointer to Channel struct
-//uint8_t* buffer - Pointer to buffer where data is stored
-static void Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer)
-{
-	uint8_t aux = 0;
-
-	//Cast data read from CAN bus to accommodate correct negative and positive values
-	//Use data mask in case of unsigned data and byte swap in case of 16 bit data
-	switch(dataStruct->cast)
-	{
-		case Cast_Uint8:
-			dataStruct->data[Data_Current] = (int32_t) (buffer[0] & dataStruct->mask);
-			break;
-
-		case Cast_Int8:
-			dataStruct->data[Data_Current] = (int32_t) ((int8_t) buffer[0]);
-			break;
-
-		case Cast_Uint16:
-
-			if(dataStruct->alignment == Alignment_Swap)
-			{
-				aux = buffer[0];
-				buffer[0] = buffer[1];
-				buffer[1] = aux;
-			}
-
-			dataStruct->data[Data_Current] = (int32_t) ((uint16_t) ((buffer[0] << 8) | buffer[1]) & dataStruct->mask);
-
-			break;
-
-		case Cast_Int16:
-
-			if(dataStruct->alignment == Alignment_Swap)
-			{
-				aux = buffer[0];
-				buffer[0] = buffer[1];
-				buffer[1] = aux;
-			}
-
-			dataStruct->data[Data_Current] = (int32_t) ((int16_t) ((buffer[0] << 8) | buffer[1]));
-
-			break;
-	}
-
-	return;
-}
-
 //Read the module's analog inputs (currents, temperature and voltage)
 //Set wait time for next reading and start hardware Timer
 //TIM_HandleTypeDef* htim - Pointer to hardware Timer peripheral handle
@@ -784,7 +789,7 @@ static void Read_Analog_Inputs(TIM_HandleTypeDef* htim, PDM_Data_Type* readingFl
 //PDM_Output_Ctrl_Struct* outStruct - pointer to array of output structs
 //PDM_Data_Type dataRead - Flag indicating which bank of output Fuses to check
 //uint16_t* dataBuffer - Pointer to Thread safe data buffer
-static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type dataRead, int16_t* dataBuffer)
+static void Fuse_Check_Status(PDM_Output_Fuse_Struct* fuseStruct, PDM_Data_Type dataRead, int16_t* dataBuffer)
 {
 	uint8_t i, j;	//fuseStruct buffer and dataBuffer minimum and maximum index
 
@@ -810,44 +815,44 @@ static void Fuse_Check_Status(PDM_Output_Ctrl_Struct* outStruct, PDM_Data_Type d
 	for(; i <= j; i++)
 	{
 		//Check if fuse is enabled
-		//Skip current execution if fuse is disabled
-		if(outStruct[i].fuseEnable == Fuse_Disabled)
+		//Skip loop execution if max current is zero
+		if(fuseStruct[i].maxCurrent != 0)
 			continue;
 
 		//Enters if current is below allowed and previous fuse status was waiting for circuit opening
-		if((dataBuffer[i] <= outStruct[i].fuseStruct->maxCurrent) && (outStruct[i].fuseStruct->status == Fuse_Wait))
+		if((dataBuffer[i] <= fuseStruct[i].maxCurrent) && (fuseStruct[i].status == Fuse_Wait))
 		{
-			outStruct[i].fuseStruct->status = Fuse_Closed;	//Set fuse status to closed circuit
-			outStruct[i].fuseStruct->retryCount = 0;	//Reset number of re-closing retry count
+			fuseStruct[i].status = Fuse_Closed;	//Set fuse status to closed circuit
+			fuseStruct[i].retryCount = 0;		//Reset number of re-closing retry count
 
-			if(osTimerIsRunning(outStruct[i].fuseStruct->osTimer) == 1)
-				osTimerStop(outStruct[i].fuseStruct->osTimer);	//Stop timeout timer
+			if(osTimerIsRunning(fuseStruct[i].osTimer) == 1)
+				osTimerStop(fuseStruct[i].osTimer);	//Stop timeout timer
 		}
 
 		//Check if timer isn't already running
-		else if(osTimerIsRunning(outStruct[i].fuseStruct->osTimer) == 0)
+		else if(osTimerIsRunning(fuseStruct[i].osTimer) == 0)
 		{
 			//Enter if current is above allowed and fuse status indicates closed circuit
-			if((dataBuffer[i] > outStruct[i].fuseStruct->maxCurrent) && (outStruct[i].fuseStruct->status != Fuse_Open))
+			if((dataBuffer[i] > fuseStruct[i].maxCurrent) && (fuseStruct[i].status != Fuse_Open))
 			{
-				outStruct[i].fuseStruct->status = Fuse_Wait;
+				fuseStruct[i].status = Fuse_Wait;
 
 				//Set waiting time for disarming for the first time
-				if(outStruct[i].fuseStruct->retryCount == 0)
-					osTimerStart(outStruct[i].fuseStruct->osTimer,
-							pdMS_TO_TICKS(outStruct[i].fuseStruct->timeout[Fuse_Time_First]));
+				if(fuseStruct[i].retryCount == 0)
+					osTimerStart(fuseStruct[i].osTimer,
+							pdMS_TO_TICKS(fuseStruct[i].timeout[Fuse_Time_First]));
 
 				//Set waiting time for disarming after the first attempt
 				else
-					osTimerStart(outStruct[i].fuseStruct->osTimer,
-							pdMS_TO_TICKS(outStruct[i].fuseStruct->timeout[Fuse_Time_Open]));
+					osTimerStart(fuseStruct[i].osTimer,
+							pdMS_TO_TICKS(fuseStruct[i].timeout[Fuse_Time_Open]));
 			}
 
 			//Enter if there are re-closing retry attempts available and fuse status is open
-			else if(((outStruct[i].fuseStruct->retryCount < outStruct[i].fuseStruct->retry)
-					|| (outStruct[i].fuseStruct->retry == FUSE_RETRY_INF))
-					&& (outStruct[i].fuseStruct->status == Fuse_Open))
-				osTimerStart(outStruct[i].fuseStruct->osTimer, pdMS_TO_TICKS(outStruct[i].fuseStruct->timeout[Fuse_Time_Close]));
+			else if(((fuseStruct[i].retryCount < fuseStruct[i].retry)
+					|| (fuseStruct[i].retry == FUSE_RETRY_INF))
+					&& (fuseStruct[i].status == Fuse_Open))
+				osTimerStart(fuseStruct[i].osTimer, pdMS_TO_TICKS(fuseStruct[i].timeout[Fuse_Time_Close]));
 		}
 	}
 

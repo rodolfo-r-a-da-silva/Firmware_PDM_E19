@@ -7,9 +7,9 @@
 
 #include <pdm.h>
 
-static void Output_Set_State(PDM_Output_Ctrl_Struct* outStruct, int16_t* dataBuffer);
-static void PWM_Set_DutyCycle(PDM_PWM_Ctrl_Struct* pwmStruct);
-static void PWM_Set_Soft_Start(PDM_PWM_Ctrl_Struct* pwmStruct, uint16_t dutyCycle);
+static void Output_Set_Level(PDM_Output_Ctrl_Struct* outStruct);
+static void Output_Set_PWM(PDM_PWM_Ctrl_Struct* pwmStruct);
+static uint8_t PWM_Set_Soft_Start(PDM_PWM_Ctrl_Struct* pwmStruct, uint16_t dutyCycle);
 static uint16_t PWM_Set_Map_DutyCycle(PDM_PWM_Map_Struct* mapStruct);
 
 /*BEGIN THREADS*/
@@ -20,6 +20,9 @@ void PDM_Output_Thread(void* threadStruct)
 	//Struct containing each input and output structure, CAN data Queue handle and semaphore handle
 	PDM_OutSet_Thread_Struct* thrdStr = (PDM_OutSet_Thread_Struct*) threadStruct;
 
+	//Indicate origin from interrupt
+	uint8_t processFlag = 0;
+
 #if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
 	//Thread stack check
 	uint32_t unusedStack;					//Unused size in bytes
@@ -29,13 +32,21 @@ void PDM_Output_Thread(void* threadStruct)
 
 	for(;;)
 	{
-		Output_Set_State(thrdStr->outStruct, thrdStr->dataBuffer);
+
+		osMessageQueueGet(thrdStr->outQueueHandle, NULL, 0, osWaitForever);
+
+		if((processFlag & PROCESS_OUTPUT) == PROCESS_OUTPUT)
+			Output_Set_Level(thrdStr->outStruct);
+
+		else if((processFlag & PROCESS_PWM) == PROCESS_PWM)
+			Output_Set_PWM(thrdStr->pwmStruct);
+
+//		else if((processFlag & PROCESS_PWM_SS) == PROCESS_PWM_SS)
+
 
 #if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
 		unusedStack = osThreadGetStackSpace(selfId);	//Checks minimum unused stack size
 #endif
-
-		osMessageQueueGet(thrdStr->outQueueHandle, NULL, 0, osWaitForever);
 	}
 
 	osThreadExit(); //Exits thread if, for some reason, it reaches the end to avoid kernel errors
@@ -47,100 +58,102 @@ void PDM_Output_Thread(void* threadStruct)
 
 /*START STATIC FUNCTIONS*/
 
-static void Output_Set_State(PDM_Output_Ctrl_Struct* outStruct, int16_t* dataBuffer)
+//Set output level or PWM duty cycle
+//PDM_Output_Ctrl_Struct* outStruct - Pointer to array of output structs
+//int16_t* dataBuffer - Pointer to array of data transmitted via CAN bus
+static void Output_Set_Level(PDM_Output_Ctrl_Struct* outStruct)
 {
-	uint8_t j = Data_PWM1;	//Index for PWM data inside Thread safe data buffer
-
-	//Zero output data inside data buffer
-	dataBuffer[Data_Output] = 0;
-
 	//Set each output state
 	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
 	{
-		//Set output level or PWM duty cycle
-		if(outStruct->outputHardware == Output_GPIO)
+		//Set level for standard GPIO output and data buffer bit
+		if(outStruct[i].outputHardware == Output_GPIO)
 		{
 			if((*outStruct[i].inputFunc == Result_True)
 					&& (outStruct[i].inputFunc != NULL)
-					&& (outStruct[i].fuseStruct->status != Fuse_Open))
-				outStruct[i].outputState = GPIO_PIN_SET;
-
-			else
-				outStruct[i].outputState = GPIO_PIN_RESET;
-
-			__PDM_OUT_SET_LEVEL(outStruct[i]);
-
-			//Place output state inside data buffer
-			dataBuffer[Data_Output] |= (outStruct[i].outputState << i);
-		}
-
-		else if((outStruct->outputHardware == Output_PWM) || (outStruct->outputHardware == Output_PWMN))
-		{
-			//Set output PWM if fuse isn't open, else set it to minimum
-			if(outStruct[i].fuseStruct->status != Fuse_Open)
+					&& (*outStruct[i].fuseSatus != Fuse_Open))
 			{
-				if((*outStruct[i].inputFunc == Result_True)
-						&& (outStruct[i].inputFunc != NULL))
-					outStruct[i].pwmStruct->dutyCycle = PWM_MAX_DUTY_CYCLE;
-
-				else
-					PWM_Set_DutyCycle(outStruct[i].pwmStruct);
+				outStruct[i].outputState = GPIO_PIN_SET;
+				*outStruct[i].dataBuffer |= 1 << (i%16);
 			}
 
 			else
-				outStruct[i].pwmStruct->dutyCycle = PWM_MAX_DUTY_CYCLE;
+			{
+				outStruct[i].outputState = GPIO_PIN_RESET;
+				*outStruct[i].dataBuffer &= ~(1 << (i%16));
+			}
 
-			__PDM_PWM_SET_COMPARE(outStruct[i]);
-
-			//Place PWM Duty Cycle inside data buffer
-			dataBuffer[j++] = __HAL_TIM_GET_COMPARE(outStruct[i].pwmStruct->htim, outStruct[i].pwmStruct->timChannel);
-
-			//Place output state inside data buffer
-			if(outStruct[i].pwmStruct->dutyCycle > PWM_MIN_DUTY_CYCLE)
-				dataBuffer[Data_Output] |= (GPIO_PIN_SET << i);
+			__PDM_OUT_SET_LEVEL(outStruct[i]);
 		}
 	}
 
 	return;
 }
 
-//Process input conditions and command variables and sets the PWM output duty cycle
-//PDM_PWM_Ctrl_Struct* pwmStruct - Pointer to struct containing PWM configuration and data
-//outLevel - Output pin level
-static void PWM_Set_DutyCycle(PDM_PWM_Ctrl_Struct* pwmStruct)
+static void Output_Set_PWM(PDM_PWM_Ctrl_Struct* pwmStruct)
 {
-	//Auxiliary variable to set duty cycle
-	uint16_t dutyCycle = PWM_MIN_DUTY_CYCLE;
+	uint16_t dutyCycle;
 
-	//Check each PWM preset value
-	for(uint8_t i = 0; i < PWM_NBR_OF_PRESETS; i++)
+	for(uint8_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
 	{
-		if((*pwmStruct->presetInputs[i] == Result_True)
-				&& (pwmStruct->presetInputs[i] != NULL))
+		//Set storage variable to minimum for comparison purposes
+		dutyCycle = PWM_MIN_DUTY_CYCLE;
+
+		if(*pwmStruct[i].fuseStatus != Fuse_Open)
 		{
-			dutyCycle = pwmStruct->presetDutyCycle[i];
-			break;
+			//Set maximum value if standard output function is true
+			if(*pwmStruct[i].stdOutput == Result_True)
+				dutyCycle = PWM_MAX_DUTY_CYCLE;
+
+			//Set value based on preset
+			else
+				for(uint8_t j = 0; j < PWM_NBR_OF_PRESETS; j++)
+					if((*pwmStruct[i].presetInputs[j] == Result_True)
+							&& (pwmStruct[i].presetInputs[j] != NULL))
+						dutyCycle = pwmStruct[i].presetDutyCycle[j];
+
+			//Check if there was no activation yet
+			if(dutyCycle == PWM_MIN_DUTY_CYCLE)
+			{
+				//Activate via 3D map
+				if(pwmStruct[i].mapStruct != NULL)
+					dutyCycle = PWM_Set_Map_DutyCycle(pwmStruct[i].mapStruct);
+			}
+
+			//Begin soft start cycle or set duty cycle based on previous conditions
+			if(PWM_Set_Soft_Start(&pwmStruct[i], dutyCycle) == 0)
+			{
+				pwmStruct[i].dutyCycle = dutyCycle;
+
+				//Set output duty cycle value inside Timer register
+				__PDM_PWM_SET_COMPARE(pwmStruct[i]);
+			}
+		}
+
+		//Set PWM duty cycle to minimum if fuse is open
+		else
+		{
+			//Stop soft start DMA transfer
+			HAL_DMA_Abort_IT(pwmStruct[i].hdma);
+			pwmStruct[i].dutyCycle = PWM_MIN_DUTY_CYCLE;
+
+			//Set output duty cycle value inside Timer register
+			__PDM_PWM_SET_COMPARE(pwmStruct[i]);
+		}
+
+		//Set corresponding output struct output state and data buffer bit
+		if(pwmStruct[i].dutyCycle != PWM_MIN_DUTY_CYCLE)
+		{
+			*pwmStruct[i].stdOutput = GPIO_PIN_SET;
+			*pwmStruct[i].dataBuffer |= 1 << (pwmStruct[i].outNumber % 16);
+		}
+
+		else
+		{
+			*pwmStruct[i].stdOutput = GPIO_PIN_RESET;
+			*pwmStruct[i].dataBuffer &= ~(1 << (pwmStruct[i].outNumber % 16));
 		}
 	}
-
-	//Check 3D map and ANN if no preset was activated
-	if(dutyCycle == PWM_MIN_DUTY_CYCLE)
-	{
-		if(pwmStruct->mapStruct != NULL)
-			dutyCycle = PWM_Set_Map_DutyCycle(pwmStruct->mapStruct);
-
-//		else if(pwmStruct->annStruct != NULL)
-	}
-
-	//Check soft start enabled status and condition
-	if(pwmStruct->ssStruct == NULL)
-	{
-		pwmStruct->dutyCycle = dutyCycle;
-		__HAL_TIM_SET_COMPARE(pwmStruct->htim, pwmStruct->timChannel, dutyCycle);
-	}
-
-	else
-		PWM_Set_Soft_Start(pwmStruct, dutyCycle);
 
 	return;
 }
@@ -148,32 +161,40 @@ static void PWM_Set_DutyCycle(PDM_PWM_Ctrl_Struct* pwmStruct)
 //Set duty cycle buffer and start PWM Timer DMA transfer
 //PDM_PWM_Ctrl_Struct* pwmStruct - Pointer to PWM struct
 //uint16_t dutyCycle - Final duty cycle value
-static void PWM_Set_Soft_Start(PDM_PWM_Ctrl_Struct* pwmStruct, uint16_t dutyCycle)
+static uint8_t PWM_Set_Soft_Start(PDM_PWM_Ctrl_Struct* pwmStruct, uint16_t dutyCycle)
 {
-	//Number of cycles until correct duty cycle is reached
-	uint16_t cycles = 0;
+	uint8_t retVal = 0;	//Tell if soft start was used
+	uint8_t start = 0;  //Starting position of duty cycle buffer
+	uint8_t finish = 0; //Finishing position of duty cycle buffer
 
-	if((pwmStruct->ssStruct->thresholds[SoftStart_Current] <= pwmStruct->dutyCycle)
+	//Current PWM duty cycle
+	uint16_t currentDutyCycle = __HAL_TIM_GET_COMPARE(pwmStruct->htim, pwmStruct->timChannel);
+
+	//Execute if there is a valid soft start struct
+	if((pwmStruct->ssStruct != NULL)
+			&& (pwmStruct->ssStruct->thresholds[SoftStart_Current] <= currentDutyCycle)
 			&& (pwmStruct->ssStruct->thresholds[SoftStart_Next] <= dutyCycle))
 	{
-		for(; pwmStruct->ssStruct->buffer[cycles] < dutyCycle; cycles++)
-		{
-			pwmStruct->ssStruct->buffer[cycles] = __PDM_LINEAR_INTERPOLATION(cycles, 0, pwmStruct->ssStruct->nbrOfCycles,
-																			 PWM_MIN_DUTY_CYCLE, PWM_MAX_DUTY_CYCLE);
-		}
+		//Stop current DMA transfer
+		HAL_DMA_Abort_IT(pwmStruct->hdma);
 
-		pwmStruct->ssStruct->buffer[cycles++] = dutyCycle;
+		//Find first value inside buffer
+		for(start = 0; (start <= PWM_SS_MAX_CYCLES) && (pwmStruct->ssStruct->buffer[start] < dutyCycle); start++);
 
-		HAL_TIM_PWM_Start_DMA(pwmStruct->htim, pwmStruct->timChannel, (uint32_t*) pwmStruct->ssStruct->buffer, cycles);
+		//Find last index inside buffer
+		for(finish = start; (finish < PWM_SS_MAX_CYCLES) && (pwmStruct->ssStruct->buffer[finish] < dutyCycle); finish++);
+
+		//Start DMA transfer based on output type
+		if(*pwmStruct->ssStruct->outHardware == Output_PWM)
+			HAL_TIM_PWM_Start_DMA(pwmStruct->htim, pwmStruct->timChannel, (uint32_t*) &pwmStruct->ssStruct->buffer[start], (finish-start));
+
+		else
+			HAL_TIMEx_PWMN_Start_DMA(pwmStruct->htim, pwmStruct->timChannel, (uint32_t*) &pwmStruct->ssStruct->buffer[start], (finish-start));
+
+		retVal = 1;
 	}
 
-	else
-	{
-		pwmStruct->dutyCycle = dutyCycle;
-		__HAL_TIM_SET_COMPARE(pwmStruct->htim, pwmStruct->timChannel, dutyCycle);
-	}
-
-	return;
+	return retVal;
 }
 
 //Sets PWM output duty cycle using its command variables

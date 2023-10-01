@@ -109,6 +109,7 @@
 #define PROCESS_OUTPUT		IN_USE_OUTPUT
 #define PROCESS_PWM			IN_USE_PWM
 #define PROCESS_FUSE		0x08
+#define PROCESS_PWM_SS		0x10
 
 //DATA
 #define NBR_OF_ADC_CHANNELS		10
@@ -119,6 +120,9 @@
 #define NBR_OF_OUTPUTS			16
 #define NBR_OF_PWM_OUTPUTS		4
 #define NBR_OF_DELAY_TIMES		5
+
+#define NBR_OF_OUT_BYTES	2
+#define NBR_OF_PWM_BYTES	8
 
 //PWM OUTPUTS
 #define PWM_FREQ_100HZ		899
@@ -135,7 +139,8 @@
 #define PWM_MIN_DUTY_CYCLE	0
 #define PWM_MAX_DUTY_CYCLE	1000
 #define PWM_NBR_OF_PRESETS	4
-#define PWM_TABLE_MAX_SIZE	16
+#define PWM_SS_MAX_CYCLES	100
+#define PWM_MAP_MAX_SIZE	16
 
 //FUSES
 #define FUSE_RETRY_INF	255
@@ -294,10 +299,14 @@
 		(__OUT_STRUCT__).outputPin,					\
 		(__OUT_STRUCT__).outputState)
 
-#define __PDM_PWM_SET_COMPARE(__OUT_STRUCT__)						\
-		__HAL_TIM_SET_COMPARE((__OUT_STRUCT__).pwmStruct->htim,	\
-		(__OUT_STRUCT__).pwmStruct->timChannel,					\
-		(__OUT_STRUCT__).pwmStruct->dutyCycle)
+#define __PDM_PWM_GET_COMPARE(__PWM_STRUCT__)			\
+		__HAL_TIM_GET_COMPARE((__PWM_STRUCT__)->htim,	\
+		(__PWM_STRUCT__)->timChannel)
+
+#define __PDM_PWM_SET_COMPARE(__PWM_STRUCT__)			\
+		__HAL_TIM_SET_COMPARE((__PWM_STRUCT__).htim,	\
+		(__PWM_STRUCT__).timChannel,					\
+		(__PWM_STRUCT__).dutyCycle)
 
 /*END MACROS*/
 
@@ -380,9 +389,9 @@ typedef enum{
 	Data_Temp8,
 	Data_TempMCU,
 	Data_Volt,
-	Data_Input,
-	Data_Output,
 	Data_Fuse,
+	Data_Input,
+	Data_Output1,
 	Data_PWM1,
 	Data_PWM2,
 	Data_PWM3,
@@ -399,7 +408,7 @@ typedef enum{
 	Cast_Int8,
 	Cast_Uint16,
 	Cast_Int16
-}PDM_Data_Cast;
+}PDM_Data_Cast_Type;
 
 typedef enum{
 	Data_ADC,
@@ -575,7 +584,7 @@ typedef struct{
 	//Byte alignment, masking and casting
 	uint16_t mask;					//AND mask for unsigned data
 	PDM_Data_Alignment alignment;	//Byte alignment for 16 bit data, will always be normal for local data
-	PDM_Data_Cast cast;				//Type of data to be cast into struct variable
+	PDM_Data_Cast_Type cast;		//Type of data to be cast into struct variable
 
 	uint8_t inUse;	//Indicate if channel is used by functions or PWM outputs
 
@@ -600,10 +609,10 @@ typedef struct{
 	PDM_Function_Edge inEdge[NBR_OF_FUNC_INPUTS];	//Array indicating which edge the inputs must be to cause a change of state
 
 	//Input configuration
-	uint8_t nbrOfInputs;							//Amount of used inputs
-	uint16_t inputNbr[NBR_OF_FUNC_INPUTS];			//Array indicating the position of input in it's array
-	PDM_Data_Cast constCast[NBR_OF_FUNC_CONSTS];	//Indicate which type of variable a constant should be cast to
-	PDM_Input_Type inputTypes[NBR_OF_FUNC_INPUTS];	//Array storing each input type
+	uint8_t nbrOfInputs;								//Amount of used inputs
+	uint16_t inputNbr[NBR_OF_FUNC_INPUTS];				//Array indicating the position of input in it's array
+	PDM_Data_Cast_Type constCast[NBR_OF_FUNC_CONSTS];	//Indicate which type of variable a constant should be cast to
+	PDM_Input_Type inputTypes[NBR_OF_FUNC_INPUTS];		//Array storing each input type
 
 	//Function configuration
 	uint16_t funcDelay[NBR_OF_FUNC_TIMES];	//Delays for result to change states or time for result state (Blink/Pulse)
@@ -620,12 +629,14 @@ typedef struct{
 }PDM_Data_Queue_Struct;
 
 typedef struct{
+	PDM_Output_Hardware* outHardware;	//Indicate if common or complementary PWM
+
 	//Stored values
 	uint16_t nbrOfCycles;	//Number of cycles to go from 0% to 100%
 	uint16_t thresholds[2];	//Threshold of minimum current and next Duty Cycle to activate soft start (PDM_SoftStart_Thresholds)
 
 	//Calculated values
-	uint16_t* buffer;
+	uint16_t buffer[PWM_SS_MAX_CYCLES];	//Buffer with soft start duty cycles
 }PDM_PWM_SoftStart_Struct;
 
 typedef struct{
@@ -646,6 +657,13 @@ typedef struct{
 
 typedef struct{
 	uint16_t dutyCycle;	//Output PWM Duty Cycle
+	uint8_t outNumber;
+
+	//Pointers
+	int16_t* dataBuffer;			//Pointer to buffer variable containing PWM duty cycle for transmission
+	int32_t* stdOutput;				//Pointer to normal operation for maximum duty cycle
+	GPIO_PinState* outState;		//Pointer to level indication variable
+	PDM_Fuse_Status* fuseStatus;	//Indicate if fuse is open or closed
 
 	//Used for configuration
 	uint16_t pwmFrequency;
@@ -655,6 +673,7 @@ typedef struct{
 	//Hardware Timer peripheral information
 	uint16_t timChannel;
 	TIM_HandleTypeDef* htim;
+	DMA_HandleTypeDef *hdma;
 
 	//Used to set specific duty cycles
 	uint16_t presetDutyCycle[PWM_NBR_OF_PRESETS];
@@ -685,18 +704,18 @@ typedef struct{
 
 typedef struct{
 	//Output activation
-	int32_t* inputFunc;				//Function result input
-	GPIO_PinState outputState;		//Indicate if output pin should be high or low
-	PDM_Fuse_Enabled fuseEnable;	//Specify if fuse is enabled for this output
+	int32_t* inputFunc;			//Function result input
+	GPIO_PinState outputState;	//Indicate if output pin should be high or low
+	PDM_Fuse_Status* fuseSatus;	//Indicate if fuse is open or closed
 
 	//Output hardware info (loaded using defines)
 	uint16_t outputPin;
 	GPIO_TypeDef* outputGPIO;
 	PDM_Output_Hardware outputHardware;
 
-	//Mixed types of activation
-	PDM_Output_Fuse_Struct* fuseStruct;	//Pointer to fuse struct
-	PDM_PWM_Ctrl_Struct* pwmStruct;		//Pointer to PWM struct
+	int16_t* dataBuffer;
+
+	PDM_PWM_Ctrl_Struct* pwmStruct;
 }PDM_Output_Ctrl_Struct;
 
 typedef struct{
@@ -730,16 +749,20 @@ typedef struct{
 
 typedef struct{
 	uint8_t nbrOfChannels;
+	uint8_t nbrOfFunctions;
 	PDM_Data_Channel_Struct* channels;
 	PDM_Function_Struct* functions;
 
 	PDM_Output_Ctrl_Struct* outStruct;
 	PDM_Input_Struct* inStruct;
+	PDM_Output_Fuse_Struct* fuseStruct;
 
 	int16_t* dataBuffer;
 	uint16_t* adcBuffer;
 	TIM_HandleTypeDef* htim;
+
 	osMessageQueueId_t* intQueueHandle;
+	osMessageQueueId_t* outQueueHandle;
 	osMutexId_t* dataMutexHandle;
 }PDM_Process_Thread_Struct;
 
@@ -748,6 +771,7 @@ typedef struct{
 	uint16_t* inputPins;
 	GPIO_TypeDef* inputGPIOs;
 	PDM_Output_Ctrl_Struct* outStruct;
+	PDM_PWM_Ctrl_Struct* pwmStruct;
 	osMessageQueueId_t* outQueueHandle;
 }PDM_OutSet_Thread_Struct;
 
@@ -780,6 +804,7 @@ typedef struct{
 
 //RTOS QUEUES
 extern osMessageQueueId_t processQueueHandle;
+extern osMessageQueueId_t outQueueHandle;
 
 //RTOS SEMAPHORES
 extern osSemaphoreId_t canRxSemaphoreHandle;
@@ -797,14 +822,23 @@ HAL_StatusTypeDef PDM_CAN_Init(PDM_CAN_Config_Struct* fltr_str);
 void PDM_CAN_Thread_Transmit_Data(void* threadStruct);
 /*END CAN PROTOTYPES*/
 
+/*BEGIN CALLBACK PROTOTYPES*/
+//FUNCTIONS
+void PDM_Data_Timeout_Callback(void* dataStruct);
+void PDM_Function_Delay_Callback(void* callbackStruct);
+void PDM_Fuse_Timer_Callback(void* callbackStruct);
+/*END CALLBACK PROTOTYPES*/
+
 /*BEGIN CONFIGURATION FUNCTION PROTOTYPES*/
 void PDM_Config_Thread(void* threadStruct);
 /*END CONFIGURATION FUNCTION PROTOTYPES*/
 
-/*BEGIN CONVERSION PROTOTYPES*/
+/*BEGIN PROCESS PROTOTYPES*/
+void PDM_Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer);
+
 //THREADS
-void PDM_Readings_Thread(void* threadStruct);
-/*END CONVERSION PROTOTYPES*/
+void PDM_Process_Thread(void* threadStruct);
+/*END PROCESS PROTOTYPES*/
 
 /*BEGIN HSD CONTROL FUNCTION PROTOTYPES*/
 //THREADS

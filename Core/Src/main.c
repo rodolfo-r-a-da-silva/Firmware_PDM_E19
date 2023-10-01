@@ -74,6 +74,11 @@ osMessageQueueId_t processQueueHandle;
 const osMessageQueueAttr_t processQueue_attributes = {
   .name = "processQueue"
 };
+/* Definitions for outQueue */
+osMessageQueueId_t outQueueHandle;
+const osMessageQueueAttr_t outQueue_attributes = {
+  .name = "outQueue"
+};
 /* Definitions for canRxSemaphore */
 osSemaphoreId_t canRxSemaphoreHandle;
 const osSemaphoreAttr_t canRxSemaphore_attributes = {
@@ -174,6 +179,9 @@ int main(void)
   /* creation of processQueue */
   processQueueHandle = osMessageQueueNew (5, sizeof(PDM_Data_Queue_Struct), &processQueue_attributes);
 
+  /* creation of outQueue */
+  outQueueHandle = osMessageQueueNew (5, sizeof(uint8_t), &outQueue_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -192,6 +200,7 @@ int main(void)
 
   /* Start scheduler */
   osKernelStart();
+
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
