@@ -657,11 +657,10 @@ typedef struct{
 
 typedef struct{
 	uint16_t dutyCycle;	//Output PWM Duty Cycle
-	uint8_t outNumber;
+	uint8_t outNumber;	//Number of corresponding output pin
 
 	//Pointers
-	int16_t* dataBuffer;			//Pointer to buffer variable containing PWM duty cycle for transmission
-	int32_t* stdOutput;				//Pointer to normal operation for maximum duty cycle
+	int32_t** stdOutput;			//Pointer to normal operation for maximum duty cycle
 	GPIO_PinState* outState;		//Pointer to level indication variable
 	PDM_Fuse_Status* fuseStatus;	//Indicate if fuse is open or closed
 
@@ -670,10 +669,11 @@ typedef struct{
 	PDM_PWM_Output_Type type;
 	PDM_SoftStart_Enabled softStart;
 
-	//Hardware Timer peripheral information
+	//Hardware and Timer peripheral information
 	uint16_t timChannel;
 	TIM_HandleTypeDef* htim;
 	DMA_HandleTypeDef *hdma;
+	PDM_Output_Hardware outputHardware;
 
 	//Used to set specific duty cycles
 	uint16_t presetDutyCycle[PWM_NBR_OF_PRESETS];
@@ -712,10 +712,6 @@ typedef struct{
 	uint16_t outputPin;
 	GPIO_TypeDef* outputGPIO;
 	PDM_Output_Hardware outputHardware;
-
-	int16_t* dataBuffer;
-
-	PDM_PWM_Ctrl_Struct* pwmStruct;
 }PDM_Output_Ctrl_Struct;
 
 typedef struct{
@@ -830,6 +826,10 @@ void PDM_Fuse_Timer_Callback(void* callbackStruct);
 /*END CALLBACK PROTOTYPES*/
 
 /*BEGIN CONFIGURATION FUNCTION PROTOTYPES*/
+//FUNCTIONS
+void PDM_Output_Reset(PDM_Output_Ctrl_Struct* outStruct, PDM_PWM_Ctrl_Struct* pwmStruct);
+
+//THREADS
 void PDM_Config_Thread(void* threadStruct);
 /*END CONFIGURATION FUNCTION PROTOTYPES*/
 

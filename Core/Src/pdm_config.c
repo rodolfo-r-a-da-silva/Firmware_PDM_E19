@@ -8,8 +8,31 @@
 #include "pdm.h"
 #include "pdm_specific.h"
 
-static void Output_Reset_State(PDM_Output_Ctrl_Struct* outStruct);
-static void Output_Init(PDM_Output_Ctrl_Struct* outStruct, TIM_HandleTypeDef** htimBuffer, uint16_t* timChannelBuffer);
+static void Output_Init(PDM_Output_Ctrl_Struct* outStruct, PDM_PWM_Ctrl_Struct* pwmStruct);
+
+/*BEGIN FUNCTIONS*/
+
+void PDM_Output_Reset(PDM_Output_Ctrl_Struct* outStruct, PDM_PWM_Ctrl_Struct* pwmStruct)
+{
+	//Reset standard outputs
+	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
+	{
+		outStruct[i].outputState = GPIO_PIN_RESET;
+		if(outStruct[i].outputHardware == Output_GPIO)
+			__PDM_OUT_SET_LEVEL(outStruct[i]);
+	}
+
+	//Reset PWM outputs
+	for(uint8_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
+	{
+		pwmStruct[i].dutyCycle = PWM_MIN_DUTY_CYCLE;
+		__PDM_PWM_SET_COMPARE(pwmStruct[i]);
+	}
+
+	return;
+}
+
+/*END FUNCTIONS*/
 
 //Initialize PDM
 //Loads from EEPROM
@@ -38,56 +61,45 @@ void PDM_Config_Thread(void* ThreadStruct)
 	return;
 }
 
-static void Output_Reset_State(PDM_Output_Ctrl_Struct* outStruct)
-{
-	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
-	{
-		if(outStruct->outputHardware == Output_GPIO)	//Reset state if there is no PWM for the pin
-			HAL_GPIO_WritePin(outStruct[i].outputGPIO, outStruct[i].outputPin, GPIO_PIN_RESET);
-
-		else	//Reset output state by zeroing the capture compare register
-			__HAL_TIM_SET_COMPARE(outStruct[i].pwmStruct->htim, outStruct[i].pwmStruct->timChannel, PWM_MIN_DUTY_CYCLE);
-	}
-
-	return;
-}
+/*BEGIN STATIC FUNCTIONS*/
 
 //Initialize and set outputs to zero Volts, should be executed only once
-static void Output_Init(PDM_Output_Ctrl_Struct* outStruct, TIM_HandleTypeDef** htimBuffer, uint16_t* timChannelBuffer)
+static void Output_Init(PDM_Output_Ctrl_Struct* outStruct, PDM_PWM_Ctrl_Struct* pwmStruct)
 {
-	uint8_t acc = 0;	//Tracks position of timer buffers
-	uint16_t outputPinBuffer[] = PDM_OUTPUT_PIN;
-	GPIO_TypeDef* outputGpioBuffer[] = PDM_OUTPUT_GPIO;
-	PDM_Output_Hardware outputHardwareBuffer[] = PDM_OUT_TYPES;
+	uint16_t outPin[] = PDM_OUTPUT_PIN;
+	GPIO_TypeDef* outGpio[] = PDM_OUTPUT_GPIO;
+	PDM_Output_Hardware outHardware[] = PDM_OUT_TYPES;
+
+	uint16_t pwmChannels[] = PDM_PWM_CHNS;
+	TIM_HandleTypeDef* pwmTimers[] = PDM_PWM_TIMS;
+	PDM_Output_Hardware pwmHardware[] = PDM_PWM_TYPES;
 
 	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
 	{
 		//Attribute pins and hardware type to each output struct
-		outStruct[i].outputPin = outputPinBuffer[i];
-		outStruct[i].outputGPIO = outputGpioBuffer[i];
-		outStruct[i].outputHardware = outputHardwareBuffer[i];
-
-		if(outputHardwareBuffer[i] == Output_GPIO)	//Reset output of it's standard GPIO
-			HAL_GPIO_WritePin(outputGpioBuffer[i], outputPinBuffer[i], GPIO_PIN_RESET);
-
-		else	//Reset output if it's PWM capable
-		{
-			//Attribute timer peripheral and channel to output PWM struct
-			outStruct[i].pwmStruct->htim = htimBuffer[acc];
-			outStruct[i].pwmStruct->timChannel = timChannelBuffer[acc];
-
-			if(outputHardwareBuffer[i] == Output_PWM)
-				HAL_TIM_PWM_Start(htimBuffer[acc], timChannelBuffer[acc]);
-
-			if(outputHardwareBuffer[i] == Output_PWMN)
-				HAL_TIMEx_PWMN_Start(htimBuffer[acc], timChannelBuffer[acc]);
-
-			__HAL_TIM_SET_COMPARE(htimBuffer[acc], timChannelBuffer[acc], 0);
-
-			acc++;	//Increment timer and channel buffer position
-		}
+		outStruct[i].outputPin = outPin[i];
+		outStruct[i].outputGPIO = outGpio[i];
+		outStruct[i].outputHardware = outHardware[i];
 	}
+
+	for(uint8_t i = 0; i < NBR_OF_PWM_OUTPUTS; i++)
+	{
+		//Attribute Timer, Channel and Hardware type to each PWM struct
+		pwmStruct[i].timChannel = pwmChannels[i];
+		pwmStruct[i].htim = pwmTimers[i];
+		pwmStruct[i].outputHardware = pwmHardware[i];
+
+		//Start PWM output
+		if(pwmHardware[i] == Output_PWM)
+			HAL_TIM_PWM_Start(pwmTimers[i], pwmChannels[i]);
+
+		else
+			HAL_TIMEx_PWMN_Start(pwmTimers[i], pwmChannels[i]);
+	}
+
+	PDM_Output_Reset(outStruct, pwmStruct);
 
 	return;
 }
 
+/*END STATIC FUNCTIONS*/

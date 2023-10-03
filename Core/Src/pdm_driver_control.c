@@ -66,25 +66,18 @@ static void Output_Set_Level(PDM_Output_Ctrl_Struct* outStruct)
 	//Set each output state
 	for(uint8_t i = 0; i < NBR_OF_OUTPUTS; i++)
 	{
-		//Set level for standard GPIO output and data buffer bit
+		//Set output state variable
+		if((*outStruct[i].inputFunc == Result_True)
+				&& (outStruct[i].inputFunc != NULL)
+				&& (*outStruct[i].fuseSatus != Fuse_Open))
+			outStruct[i].outputState = GPIO_PIN_SET;
+
+		else
+			outStruct[i].outputState = GPIO_PIN_RESET;
+
+		//Set level for standard GPIO output
 		if(outStruct[i].outputHardware == Output_GPIO)
-		{
-			if((*outStruct[i].inputFunc == Result_True)
-					&& (outStruct[i].inputFunc != NULL)
-					&& (*outStruct[i].fuseSatus != Fuse_Open))
-			{
-				outStruct[i].outputState = GPIO_PIN_SET;
-				*outStruct[i].dataBuffer |= 1 << (i%16);
-			}
-
-			else
-			{
-				outStruct[i].outputState = GPIO_PIN_RESET;
-				*outStruct[i].dataBuffer &= ~(1 << (i%16));
-			}
-
 			__PDM_OUT_SET_LEVEL(outStruct[i]);
-		}
 	}
 
 	return;
@@ -102,7 +95,7 @@ static void Output_Set_PWM(PDM_PWM_Ctrl_Struct* pwmStruct)
 		if(*pwmStruct[i].fuseStatus != Fuse_Open)
 		{
 			//Set maximum value if standard output function is true
-			if(*pwmStruct[i].stdOutput == Result_True)
+			if(**pwmStruct[i].stdOutput == Result_True)
 				dutyCycle = PWM_MAX_DUTY_CYCLE;
 
 			//Set value based on preset
@@ -141,18 +134,12 @@ static void Output_Set_PWM(PDM_PWM_Ctrl_Struct* pwmStruct)
 			__PDM_PWM_SET_COMPARE(pwmStruct[i]);
 		}
 
-		//Set corresponding output struct output state and data buffer bit
+		//Set corresponding output struct output state
 		if(pwmStruct[i].dutyCycle != PWM_MIN_DUTY_CYCLE)
-		{
-			*pwmStruct[i].stdOutput = GPIO_PIN_SET;
-			*pwmStruct[i].dataBuffer |= 1 << (pwmStruct[i].outNumber % 16);
-		}
+			*pwmStruct[i].outState = GPIO_PIN_SET;
 
 		else
-		{
-			*pwmStruct[i].stdOutput = GPIO_PIN_RESET;
-			*pwmStruct[i].dataBuffer &= ~(1 << (pwmStruct[i].outNumber % 16));
-		}
+			*pwmStruct[i].outState = GPIO_PIN_RESET;
 	}
 
 	return;

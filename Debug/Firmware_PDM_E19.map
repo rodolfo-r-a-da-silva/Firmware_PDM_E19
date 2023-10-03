@@ -875,15 +875,15 @@ Discarded input sections
  .text          0x0000000000000000        0x0 ./Core/Src/pdm_config.o
  .data          0x0000000000000000        0x0 ./Core/Src/pdm_config.o
  .bss           0x0000000000000000        0x0 ./Core/Src/pdm_config.o
+ .text.PDM_Output_Reset
+                0x0000000000000000      0x170 ./Core/Src/pdm_config.o
  .text.PDM_Config_Thread
                 0x0000000000000000       0x18 ./Core/Src/pdm_config.o
- .text.Output_Reset_State
-                0x0000000000000000       0xc6 ./Core/Src/pdm_config.o
- .rodata        0x0000000000000000       0x70 ./Core/Src/pdm_config.o
+ .rodata        0x0000000000000000       0x8c ./Core/Src/pdm_config.o
  .text.Output_Init
-                0x0000000000000000      0x218 ./Core/Src/pdm_config.o
- .debug_info    0x0000000000000000      0xdd5 ./Core/Src/pdm_config.o
- .debug_abbrev  0x0000000000000000      0x1e7 ./Core/Src/pdm_config.o
+                0x0000000000000000      0x1dc ./Core/Src/pdm_config.o
+ .debug_info    0x0000000000000000      0xe53 ./Core/Src/pdm_config.o
+ .debug_abbrev  0x0000000000000000      0x221 ./Core/Src/pdm_config.o
  .debug_aranges
                 0x0000000000000000       0x30 ./Core/Src/pdm_config.o
  .debug_rnglists
@@ -979,8 +979,8 @@ Discarded input sections
  .debug_macro   0x0000000000000000      0x20f ./Core/Src/pdm_config.o
  .debug_macro   0x0000000000000000      0x39a ./Core/Src/pdm_config.o
  .debug_macro   0x0000000000000000       0x34 ./Core/Src/pdm_config.o
- .debug_line    0x0000000000000000      0xce7 ./Core/Src/pdm_config.o
- .debug_str     0x0000000000000000    0xe44e8 ./Core/Src/pdm_config.o
+ .debug_line    0x0000000000000000      0xd17 ./Core/Src/pdm_config.o
+ .debug_str     0x0000000000000000    0xe4553 ./Core/Src/pdm_config.o
  .comment       0x0000000000000000       0x44 ./Core/Src/pdm_config.o
  .debug_frame   0x0000000000000000       0x80 ./Core/Src/pdm_config.o
  .ARM.attributes
@@ -1080,14 +1080,14 @@ Discarded input sections
  .text.PDM_Output_Thread
                 0x0000000000000000       0x5a ./Core/Src/pdm_driver_control.o
  .text.Output_Set_Level
-                0x0000000000000000       0xf8 ./Core/Src/pdm_driver_control.o
+                0x0000000000000000       0xe4 ./Core/Src/pdm_driver_control.o
  .text.Output_Set_PWM
-                0x0000000000000000      0x382 ./Core/Src/pdm_driver_control.o
+                0x0000000000000000      0x300 ./Core/Src/pdm_driver_control.o
  .text.PWM_Set_Soft_Start
                 0x0000000000000000      0x14a ./Core/Src/pdm_driver_control.o
  .text.PWM_Set_Map_DutyCycle
                 0x0000000000000000      0x736 ./Core/Src/pdm_driver_control.o
- .debug_info    0x0000000000000000      0xfff ./Core/Src/pdm_driver_control.o
+ .debug_info    0x0000000000000000      0xfe7 ./Core/Src/pdm_driver_control.o
  .debug_abbrev  0x0000000000000000      0x234 ./Core/Src/pdm_driver_control.o
  .debug_aranges
                 0x0000000000000000       0x40 ./Core/Src/pdm_driver_control.o
@@ -1183,7 +1183,7 @@ Discarded input sections
  .debug_macro   0x0000000000000000       0x65 ./Core/Src/pdm_driver_control.o
  .debug_macro   0x0000000000000000      0x20f ./Core/Src/pdm_driver_control.o
  .debug_macro   0x0000000000000000      0x39a ./Core/Src/pdm_driver_control.o
- .debug_line    0x0000000000000000     0x1186 ./Core/Src/pdm_driver_control.o
+ .debug_line    0x0000000000000000     0x1111 ./Core/Src/pdm_driver_control.o
  .debug_str     0x0000000000000000    0xe4244 ./Core/Src/pdm_driver_control.o
  .comment       0x0000000000000000       0x44 ./Core/Src/pdm_driver_control.o
  .debug_frame   0x0000000000000000       0xd4 ./Core/Src/pdm_driver_control.o
@@ -1292,7 +1292,7 @@ Discarded input sections
  .text.Function_Input_Process
                 0x0000000000000000      0x102 ./Core/Src/pdm_process.o
  .text.Function_Fuse_Process
-                0x0000000000000000      0x106 ./Core/Src/pdm_process.o
+                0x0000000000000000      0x10e ./Core/Src/pdm_process.o
  .text.Function_Custom_Process
                 0x0000000000000000      0xda8 ./Core/Src/pdm_process.o
  .text.Function_Result_Process
@@ -1301,7 +1301,7 @@ Discarded input sections
                 0x0000000000000000      0x248 ./Core/Src/pdm_process.o
  .text.Fuse_Check_Status
                 0x0000000000000000      0x298 ./Core/Src/pdm_process.o
- .debug_info    0x0000000000000000     0x1acc ./Core/Src/pdm_process.o
+ .debug_info    0x0000000000000000     0x17b6 ./Core/Src/pdm_process.o
  .debug_abbrev  0x0000000000000000      0x2cf ./Core/Src/pdm_process.o
  .debug_aranges
                 0x0000000000000000       0x68 ./Core/Src/pdm_process.o
@@ -1398,7 +1398,7 @@ Discarded input sections
  .debug_macro   0x0000000000000000      0x20f ./Core/Src/pdm_process.o
  .debug_macro   0x0000000000000000      0x39a ./Core/Src/pdm_process.o
  .debug_line    0x0000000000000000     0x1825 ./Core/Src/pdm_process.o
- .debug_str     0x0000000000000000    0xe4b2b ./Core/Src/pdm_process.o
+ .debug_str     0x0000000000000000    0xe490c ./Core/Src/pdm_process.o
  .comment       0x0000000000000000       0x44 ./Core/Src/pdm_process.o
  .debug_frame   0x0000000000000000      0x18c ./Core/Src/pdm_process.o
  .ARM.attributes
