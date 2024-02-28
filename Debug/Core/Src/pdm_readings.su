@@ -1,1 +1,5 @@
-../Core/Src/pdm_readings.c:13:6:PDM_Readings_Thread	40	static
+../Core/Src/pdm_readings.c:25:6:PDM_Readings_Thread	128	static
+../Core/Src/pdm_readings.c:91:13:Analog_Read	32	static
+../Core/Src/pdm_readings.c:175:16:Digital_Read	16	static
+../Core/Src/pdm_readings.c:194:16:Convert_Filter	24	static
+../Core/Src/pdm_readings.c:215:13:Fuse_Check_Status	24	static

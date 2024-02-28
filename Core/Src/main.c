@@ -165,7 +165,7 @@ int main(void)
 
   /* Create the semaphores(s) */
   /* creation of canRxSemaphore */
-  canRxSemaphoreHandle = osSemaphoreNew(1, 1, &canRxSemaphore_attributes);
+  canRxSemaphoreHandle = osSemaphoreNew(1, 0, &canRxSemaphore_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -915,17 +915,23 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : INPUT1_Pin INPUT2_Pin INPUT3_Pin INPUT4_Pin */
-  GPIO_InitStruct.Pin = INPUT1_Pin|INPUT2_Pin|INPUT3_Pin|INPUT4_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  /*Configure GPIO pins : INPUT1_Pin INPUT2_Pin INPUT3_Pin */
+  GPIO_InitStruct.Pin = INPUT1_Pin|INPUT2_Pin|INPUT3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : INPUT13_Pin INPUT14_Pin INPUT15_Pin INPUT16_Pin
-                           INPUT5_Pin INPUT6_Pin */
-  GPIO_InitStruct.Pin = INPUT13_Pin|INPUT14_Pin|INPUT15_Pin|INPUT16_Pin
-                          |INPUT5_Pin|INPUT6_Pin;
+  /*Configure GPIO pin : INPUT4_Pin */
+  GPIO_InitStruct.Pin = INPUT4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(INPUT4_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : INPUT13_Pin INPUT15_Pin INPUT16_Pin INPUT5_Pin
+                           INPUT6_Pin */
+  GPIO_InitStruct.Pin = INPUT13_Pin|INPUT15_Pin|INPUT16_Pin|INPUT5_Pin
+                          |INPUT6_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
@@ -951,25 +957,9 @@ static void MX_GPIO_Init(void)
                            INPUT11_Pin INPUT12_Pin */
   GPIO_InitStruct.Pin = INPUT7_Pin|INPUT8_Pin|INPUT9_Pin|INPUT10_Pin
                           |INPUT11_Pin|INPUT12_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

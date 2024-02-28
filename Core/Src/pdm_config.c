@@ -6,7 +6,6 @@
  */
 
 #include "pdm.h"
-#include "pdm_specific.h"
 
 static void Output_Init(PDM_Output_Ctrl_Struct* outStruct, PDM_PWM_Ctrl_Struct* pwmStruct);
 
@@ -39,6 +38,8 @@ void PDM_Output_Reset(PDM_Output_Ctrl_Struct* outStruct, PDM_PWM_Ctrl_Struct* pw
 //Initializes PWM
 void PDM_Config_Thread(void* ThreadStruct)
 {
+	//Struct containing input and output structs and Queue handle
+	PDM_OutSet_Thread_Struct* thrStr = (PDM_OutSet_Thread_Struct*) ThreadStruct;
 
 #if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
 	//Thread stack check
@@ -46,6 +47,9 @@ void PDM_Config_Thread(void* ThreadStruct)
 	osThreadId_t selfId = osThreadGetId();	//Thread id for unused stack checking
 	UNUSED(unusedStack);					//Removes warning telling that the variable is unused
 #endif
+
+	//Load output hardware data and set all levels to 0
+	Output_Init(thrStr->outStruct, thrStr->pwmStruct);
 
 	for(;;)
 	{

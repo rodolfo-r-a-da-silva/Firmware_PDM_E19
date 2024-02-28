@@ -69,16 +69,12 @@ void Error_Handler(void);
 #define SEN_GPIO_Port GPIOE
 #define INPUT1_Pin GPIO_PIN_0
 #define INPUT1_GPIO_Port GPIOF
-#define INPUT1_EXTI_IRQn EXTI0_IRQn
 #define INPUT2_Pin GPIO_PIN_1
 #define INPUT2_GPIO_Port GPIOF
-#define INPUT2_EXTI_IRQn EXTI1_IRQn
 #define INPUT3_Pin GPIO_PIN_2
 #define INPUT3_GPIO_Port GPIOF
-#define INPUT3_EXTI_IRQn EXTI2_IRQn
 #define INPUT4_Pin GPIO_PIN_3
 #define INPUT4_GPIO_Port GPIOF
-#define INPUT4_EXTI_IRQn EXTI3_IRQn
 #define ANALOG1_Pin GPIO_PIN_0
 #define ANALOG1_GPIO_Port GPIOA
 #define ANALOG2_Pin GPIO_PIN_1
@@ -155,7 +151,6 @@ void Error_Handler(void);
 #define INPUT12_GPIO_Port GPIOC
 #define INPUT5_Pin GPIO_PIN_4
 #define INPUT5_GPIO_Port GPIOB
-#define INPUT5_EXTI_IRQn EXTI4_IRQn
 #define INPUT6_Pin GPIO_PIN_5
 #define INPUT6_GPIO_Port GPIOB
 

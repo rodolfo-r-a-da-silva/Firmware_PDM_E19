@@ -13,13 +13,12 @@
 #include "cmsis_os2.h"
 #include "FreeRTOS.h"
 #include "usbd_def.h"
+#include "pdm_specific.h"
 
 /*BEGIN DEFINES*/
 //FREERTOS QUEUE
-#define RTOS_QUEUE_CANCFG_SIZE		sizeof(PDM_Data_Queue_Struct)
-#define RTOS_QUEUE_CANCFG_COUNT		5
-#define RTOS_QUEUE_CANCHN_SIZE		sizeof(PDM_Data_Queue_Struct)
-#define RTOS_QUEUE_CANCHN_COUNT		5
+#define RTOS_QUEUE_CANRX_SIZE		sizeof(CAN_HandleTypeDef*)
+#define RTOS_QUEUE_CANRX_COUNT		5
 #define RTOS_QUEUE_CANTXFREQ_SIZE	1
 #define RTOS_QUEUE_CANTXFREQ_COUNT	1
 #define RTOS_QUEUE_OUT_SIZE			sizeof(uint8_t)
@@ -32,8 +31,6 @@
 #define RTOS_SEMAPHORE_CANCFG_INIT	0
 #define RTOS_SEMAPHORE_CANCHN_MAX	1
 #define RTOS_SEMAPHORE_CANCHN_INIT	0
-#define RTOS_SEMAPHORE_CANRX_MAX	1
-#define RTOS_SEMAPHORE_CANRX_INIT	0
 #define RTOS_SEMAPHORE_READ_MAX		1
 #define RTOS_SEMAPHORE_READ_INIT	1
 
@@ -75,24 +72,16 @@
 #define CAN_QUEUE_SIZE			14
 #define OUTPUT_FUSE_FREQ		25
 
-//CHANNELS AND FUNCTIONS
-#define NBR_OF_ANALOG_CHANNELS	27
-#define CHANNEL_ANALOG_OFFSET	0
-#define CHANNEL_ANALOG_FINISH	CHANNEL_ANALOG_OFFSET+NBR_OF_ANALOG_CHANNELS
-#define CHANNEL_CAN_OFFSET		CHANNEL_ANALOG_FINISH
-#define CHANNEL_TEMP_MCU		CHANNEL_ANALOG_OFFSET+Data_TempMCU
-
-#define NBR_OF_INPUT_FUNCTIONS	NBR_OF_INPUTS
-#define FUNCTION_INPUT_OFFSET	0
-#define FUNCTION_INPUT_FINISH	FUNCTION_INPUT_OFFSET+NBR_OF_INPUT_FUNCTIONS
-#define FUNCTION_FUSE_OFFSET	FUNCTION_INPUT_FINISH
-#define FUNCTION_FUSE_FINISH	FUNCTION_FUSE_OFFSET+NBR_OF_OUTPUTS
-#define FUNCTION_CUSTOM_OFFSET	FUNCTION_FUSE_FINISH
+#define CAN_PRESCALER_125K		40
+#define CAN_PRESCALER_250K		20
+#define CAN_PRESCALER_500K		10
+#define CAN_PRESCALER_1000K		5
 
 #define COUNTER_WRAP_TO_LOW		0x01
 #define COUNTER_WRAP_TO_HIGH	0x02
 
-#define NBR_OF_DATA_RESULTS	2
+#define NBR_OF_INTERP_POINTS	4
+#define NBR_OF_DATA_RESULTS		2
 
 #define NBR_OF_FUNC_TIMES	2
 #define NBR_OF_FUNC_CONSTS	6
@@ -112,29 +101,23 @@
 #define PROCESS_PWM_SS		0x10
 
 //DATA
-#define NBR_OF_ADC_CHANNELS		10
-#define NBR_OF_DATA_CHANNELS	34
-#define NBR_OF_DATA_MSGS		10
 #define NBR_OF_FREQ_OPTS		Data_Freq_Max-1
-#define NBR_OF_INPUTS			16
-#define NBR_OF_OUTPUTS			16
-#define NBR_OF_PWM_OUTPUTS		4
 #define NBR_OF_DELAY_TIMES		5
 
 #define NBR_OF_OUT_BYTES	2
 #define NBR_OF_PWM_BYTES	8
 
 //PWM OUTPUTS
-#define PWM_FREQ_100HZ		899
-#define PWM_FREQ_250HZ		359
-#define PWM_FREQ_500HZ		179
-#define PWM_FREQ_750HZ		119
-#define PWM_FREQ_1000HZ		89
-#define PWM_FREQ_2500HZ		35
-#define PWM_FREQ_5000HZ		17
-#define PWM_FREQ_7500HZ		11
-#define PWM_FREQ_10000HZ	8
-#define PWM_FREQ_15000HZ	5
+#define PWM_PER_100HZ	899
+#define PWM_PER_250HZ	359
+#define PWM_PER_500HZ	179
+#define PWM_PER_750HZ	119
+#define PWM_PER_1000HZ	89
+#define PWM_PER_2500HZ	35
+#define PWM_PER_5000HZ	17
+#define PWM_PER_7500HZ	11
+#define PWM_PER_10000HZ	8
+#define PWM_PER_15000HZ	5
 
 #define PWM_MIN_DUTY_CYCLE	0
 #define PWM_MAX_DUTY_CYCLE	1000
@@ -146,18 +129,18 @@
 #define FUSE_RETRY_INF	255
 
 //FREQUENCIES
-#define DATA_DISABLED	0
-#define DATA_FREQ_1HZ	1000
-#define DATA_FREQ_2HZ	500
-#define DATA_FREQ_5HZ	200
-#define DATA_FREQ_10HZ	100
-#define DATA_FREQ_20HZ	50
-#define DATA_FREQ_25HZ	40
-#define DATA_FREQ_50HZ	20
-#define DATA_FREQ_100HZ	10
-#define DATA_FREQ_200HZ	5
-#define DATA_FREQ_250HZ	4
-#define DATA_FREQ_500HZ	2
+#define DATA_PER_DISABLED	0
+#define DATA_PER_1HZ		1000
+#define DATA_PER_2HZ		500
+#define DATA_PER_5HZ		200
+#define DATA_PER_10HZ		100
+#define DATA_PER_20HZ		50
+#define DATA_PER_25HZ		40
+#define DATA_PER_50HZ		20
+#define DATA_PER_100HZ		10
+#define DATA_PER_200HZ		5
+#define DATA_PER_250HZ		4
+#define DATA_PER_500HZ		2
 
 //TIMEOUTS
 #define CAN_THREAD_TIMEOUT		pdMS_TO_TICKS(2)
@@ -185,87 +168,6 @@
 /*END DEFINES*/
 
 /*BEGIN MACROS*/
-#define __BUFFER_TO_FREQ(__BUFFER__, __PER__)	\
-	switch(__BUFFER__)							\
-	{											\
-		case Data_Freq_1Hz:						\
-			(__PER__) = DATA_FREQ_1HZ;			\
-			break;								\
-		case Data_Freq_2Hz:						\
-			(__PER__) = DATA_FREQ_2HZ;			\
-			break;								\
-		case Data_Freq_5Hz:						\
-			(__PER__) = DATA_FREQ_5HZ;			\
-			break;								\
-		case Data_Freq_10Hz:					\
-			(__PER__) = DATA_FREQ_10HZ;			\
-			break;								\
-		case Data_Freq_20Hz:					\
-			(__PER__) = DATA_FREQ_20HZ;			\
-			break;								\
-		case Data_Freq_25Hz:					\
-			(__PER__) = DATA_FREQ_25HZ;			\
-			break;								\
-		case Data_Freq_50Hz:					\
-			(__PER__) = DATA_FREQ_50HZ;			\
-			break;								\
-		case Data_Freq_100Hz:					\
-			(__PER__) = DATA_FREQ_100HZ;		\
-			break;								\
-		case Data_Freq_200Hz:					\
-			(__PER__) = DATA_FREQ_200HZ;		\
-			break;								\
-		case Data_Freq_250Hz:					\
-			(__PER__) = DATA_FREQ_250HZ;		\
-			break;								\
-		case Data_Freq_500Hz:					\
-			(__PER__) = DATA_FREQ_500HZ;		\
-			break;								\
-		default:								\
-			(__PER__) = DATA_DISABLED;			\
-			break;								\
-	}
-
-#define __FREQ_TO_BUFFER(__BUFFER__, __PER__)	\
-	switch(__PER__)								\
-	{											\
-		case DATA_FREQ_1HZ:						\
-			(__BUFFER__) = Data_Freq_1Hz;		\
-			break;								\
-		case DATA_FREQ_2HZ:						\
-			(__BUFFER__) = Data_Freq_2Hz;		\
-			break;								\
-		case DATA_FREQ_5HZ:						\
-			(__BUFFER__) = Data_Freq_5Hz;		\
-			break;								\
-		case DATA_FREQ_10HZ:					\
-			(__BUFFER__) = Data_Freq_10Hz;		\
-			break;								\
-		case DATA_FREQ_20HZ:					\
-			(__BUFFER__) = Data_Freq_20Hz;		\
-			break;								\
-		case DATA_FREQ_25HZ:					\
-			(__BUFFER__) = Data_Freq_25Hz;		\
-			break;								\
-		case DATA_FREQ_50HZ:					\
-			(__BUFFER__) = Data_Freq_50Hz;		\
-			break;								\
-		case DATA_FREQ_100HZ:					\
-			(__BUFFER__) = Data_Freq_100Hz;		\
-			break;								\
-		case DATA_FREQ_200HZ:					\
-			(__BUFFER__) = Data_Freq_200Hz;		\
-			break;								\
-		case DATA_FREQ_250HZ:					\
-			(__BUFFER__) = Data_Freq_250Hz;		\
-			break;								\
-		case DATA_FREQ_500HZ:					\
-			(__BUFFER__) = Data_Freq_500Hz;		\
-			break;								\
-		default:								\
-			(__BUFFER__) = Data_Disabled;		\
-			break;								\
-	}
 
 #define __F32_TO_BUFFER(__HIGH__, __LOW__, __FLOAT__)								\
 		(__HIGH__) = (((__FLOAT__) >> 24) & 0xc0) | (((__FLOAT__) >> 21) & 0x3f);	\
@@ -338,7 +240,7 @@ typedef enum{
 }PDM_CAN_TxMsgType;
 
 typedef enum{
-	Data_Disabled	= 0x00,
+	Data_Freq_Disabled	= 0x00,
 	Data_Freq_1Hz,
 	Data_Freq_2Hz,
 	Data_Freq_5Hz,
@@ -354,29 +256,29 @@ typedef enum{
 }Data_Freq;
 
 typedef enum{
-	Data_Type_Init,
-	Data_Type_Current0,
-	Data_Type_Current1,
-	Data_Type_Temperature,
-	Data_Type_Voltage
-}PDM_Data_Type;
+	Reading_Init,
+	Reading_Current0,
+	Reading_Current1,
+	Reading_Temperature,
+	Reading_Voltage
+}PDM_Reading_Type;
 
 typedef enum{
 	Data_Curr1 = 0,
-	Data_Curr3,
-	Data_Curr5,
-	Data_Curr7,
-	Data_Curr9,
-	Data_Curr11,
-	Data_Curr13,
-	Data_Curr15,
 	Data_Curr2,
+	Data_Curr3,
 	Data_Curr4,
+	Data_Curr5,
 	Data_Curr6,
+	Data_Curr7,
 	Data_Curr8,
+	Data_Curr9,
 	Data_Curr10,
+	Data_Curr11,
 	Data_Curr12,
+	Data_Curr13,
 	Data_Curr14,
+	Data_Curr15,
 	Data_Curr16,
 	Data_CurrTotal,
 	Data_Temp1,
@@ -420,6 +322,7 @@ typedef enum{
 typedef enum{
 	Interrupt_CAN,
 	Interrupt_Function,
+	Interrupt_Local,
 	Interrupt_Fuse,
 	Interrupt_Gpio,
 	Interrupt_Timer
@@ -493,6 +396,8 @@ typedef enum{
 	Function_Equals,
 	Function_Less,
 	Function_More,
+	Function_Minus,
+	Function_Plus,
 	Function_Hysteresis,
 	Function_Blink,
 	Function_Pulse,
@@ -503,12 +408,12 @@ typedef enum{
 
 typedef enum{
 	FuncIn_Current1,
-	FuncIn_Previous1,
 	FuncIn_Current2,
-	FuncIn_Previous2,
 	FuncIn_Current3,
-	FuncIn_Previous3,
 	FuncIn_Current4,
+	FuncIn_Previous1,
+	FuncIn_Previous2,
+	FuncIn_Previous3,
 	FuncIn_Previous4
 }PDM_Function_InputChange;
 
@@ -573,11 +478,24 @@ typedef struct{
 }PDM_CAN_Config_Struct;
 
 typedef struct{
+	int32_t data[NBR_OF_DATA_RESULTS];	//Channel value for function calculations
+
+	//Digital filtering
+	float filter[2];
+
+	//Values for result calculation via interpolation
+	int16_t adc[NBR_OF_INTERP_POINTS];
+	int16_t value[NBR_OF_INTERP_POINTS];
+
+	uint8_t inUse;	//Indicate if channel is used by functions or PWM outputs
+}PDM_Channel_Local_Struct;
+
+typedef struct{
 	int32_t data[NBR_OF_DATA_RESULTS];	//Channel value used for condition calculation
 
 	//Data filtering and conversion
 	uint8_t dataFilterNbr;	//Indicate which filter from local filters or CAN filter bank is used
-	uint32_t dataFilter;	//Filter corresponding to the data's frame
+	uint32_t* dataFilter;	//Filter corresponding to the data's frame
 	uint16_t position;		//Data field byte offset for Local and Fixed CAN data or CAN/Local data channel ID
 	PDM_Data_Source source;	//Specify if data is read from ADC, Inputs or is received via CAN bus
 
@@ -590,11 +508,11 @@ typedef struct{
 
 	//Timeout info for CAN data
 	uint16_t defaultVal;				//Value cast into variable if timeout is reached
-	uint8_t timeout;					//Timeout in milliseconds/100
-	osTimerId_t timer;					//Timer for timeout processing
+	uint32_t timeout;					//Timeout in system ticks
+	osTimerId_t timerHandle;			//Timer for timeout processing
 	PDM_CAN_Data_Timeout timeoutFlag;	//Indicates if data was timed out
 	PDM_CAN_Data_Keep keep;				//Indicate if data should be kept as last value if timeout happens
-}PDM_Data_Channel_Struct;
+}PDM_Channel_CAN_Struct;
 
 typedef struct{
 	//Output result
@@ -610,14 +528,14 @@ typedef struct{
 
 	//Input configuration
 	uint8_t nbrOfInputs;								//Amount of used inputs
-	uint16_t inputNbr[NBR_OF_FUNC_INPUTS];				//Array indicating the position of input in it's array
+	uint8_t inputNbr[NBR_OF_FUNC_INPUTS];				//Array indicating the position of input in it's array
 	PDM_Data_Cast_Type constCast[NBR_OF_FUNC_CONSTS];	//Indicate which type of variable a constant should be cast to
 	PDM_Input_Type inputTypes[NBR_OF_FUNC_INPUTS];		//Array storing each input type
 
 	//Function configuration
-	uint16_t funcDelay[NBR_OF_FUNC_TIMES];	//Delays for result to change states or time for result state (Blink/Pulse)
-	osTimerId_t funcTimer;					//Timer for change of result delay
-	osMessageQueueId_t processQueue;		//Queue to send interrupt source to process Thread
+	uint32_t funcDelay[NBR_OF_FUNC_TIMES];	//Delays for result to change states or time for result state (Blink/Pulse)
+	osTimerId_t funcTimerHandle;			//Timer for change of result delay
+	osMessageQueueId_t procSemHandle;		//Semaphore to execute Processing Thread
 	PDM_Function_Type type;					//Indicate which type of operation the function performs
 }PDM_Function_Struct;
 
@@ -687,6 +605,8 @@ typedef struct{
 }PDM_PWM_Ctrl_Struct;
 
 typedef struct{
+	int16_t* current;	//Pointer to measured current
+
 	uint8_t retry;		//Maximum number of closing attempts
 	uint8_t retryCount;	//Number of times attempted to close the fuse
 	int16_t maxCurrent;	//Maximum current for fuse opening
@@ -696,17 +616,17 @@ typedef struct{
 	PDM_Fuse_Status status;
 	osTimerId_t osTimer;
 
-	//Output and Function processing
-	osMessageQueueId_t* outputQueue;	//Queue handle for output process Thread
-	osMessageQueueId_t* processQueue;	//Queue handle for processing Thread
-	PDM_Function_Struct* funcStruct;	//Fuse Function for operations processing
+	//Output processing
+	uint8_t processType;	//Indicate type of output to be processed (use processing flag)
+	osMessageQueueId_t outputQueue;	//Queue handle for output process Thread
 }PDM_Output_Fuse_Struct;
 
 typedef struct{
 	//Output activation
-	int32_t* inputFunc;			//Function result input
-	GPIO_PinState outputState;	//Indicate if output pin should be high or low
-	PDM_Fuse_Status* fuseSatus;	//Indicate if fuse is open or closed
+	int32_t* inputFunc;				//Function result input
+	int32_t* masterReset;			//Function that resets the output if true
+	GPIO_PinState outputState;		//Indicate if output pin should be high or low
+	PDM_Fuse_Status* fuseStatus;	//Indicate if fuse is open or closed
 
 	//Output hardware info (loaded using defines)
 	uint16_t outputPin;
@@ -715,27 +635,26 @@ typedef struct{
 }PDM_Output_Ctrl_Struct;
 
 typedef struct{
-	uint16_t pin[NBR_OF_INPUTS];
-	GPIO_TypeDef gpio[NBR_OF_INPUTS];
+	uint16_t pin;
+	GPIO_TypeDef gpio;
 }PDM_Input_Struct;
 /*END STRUCT TYPEDEFS*/
 
 /*START THREAD STRUCT TYPEDEFS*/
 typedef struct{
-	PDM_CAN_Config_Struct* canConfig;	//Contains CAN handle, data and filter information
+	PDM_Channel_CAN_Struct* chnStruct;	//Pointer to array of CAN channels
 
-	osMessageQueueId_t* cfgQueueHandle;
-	osMessageQueueId_t* chnQueueHandle;
-	osSemaphoreId_t* semaphoreHandle;
-	osSemaphoreId_t* cfgSemaphoreHandle;
-	osSemaphoreId_t* chnSemaphoreHandle;
+	osMessageQueueId_t queueHandle;
+	osMessageQueueId_t cfgQueueHandle;
+	osMessageQueueId_t outQueueHandle;
+	osSemaphoreId_t procSemHandle;
 }PDM_CanRxMsg_Thread_Struct;
 
 typedef struct{
 	uint16_t* dataBuffer;
 	uint16_t* dataIdBuffer;
-	Data_Freq dataFreq;
-	Data_Freq* dataFreqBuffer;
+	uint32_t dataFreq;
+	uint32_t* dataFreqBuffer;
 
 	CAN_HandleTypeDef* hcan;
 	PDM_CAN_TxMsgType txMsgType;
@@ -745,8 +664,8 @@ typedef struct{
 
 typedef struct{
 	uint8_t nbrOfChannels;
-	uint8_t nbrOfFunctions;
-	PDM_Data_Channel_Struct* channels;
+	PDM_Channel_Local_Struct* localChannels;
+	PDM_Channel_CAN_Struct* canChannels;
 	PDM_Function_Struct* functions;
 
 	PDM_Output_Ctrl_Struct* outStruct;
@@ -755,11 +674,11 @@ typedef struct{
 
 	int16_t* dataBuffer;
 	uint16_t* adcBuffer;
+	CAN_HandleTypeDef* hcan;
 	TIM_HandleTypeDef* htim;
 
-	osMessageQueueId_t* intQueueHandle;
-	osMessageQueueId_t* outQueueHandle;
-	osMutexId_t* dataMutexHandle;
+	osSemaphoreId_t semHandle;
+	osMessageQueueId_t outQueueHandle;
 }PDM_Process_Thread_Struct;
 
 typedef struct{
@@ -772,12 +691,17 @@ typedef struct{
 }PDM_OutSet_Thread_Struct;
 
 typedef struct{
-	int16_t* dataBuffer;
-	uint16_t* adcBuffer;
+	//Hardware timer and raw ADC buffer
+	uint16_t adcBuffer[NBR_OF_ADC_CHANNELS];
 	TIM_HandleTypeDef* htim;
-	osMessageQueueId_t* queueHandle;
-	osMutexId_t* dataMutexHandle;
-	PDM_Output_Ctrl_Struct* outStruct;
+
+	PDM_Channel_Local_Struct* localChannels;
+	PDM_Output_Fuse_Struct* fuses;
+	PDM_Input_Struct* inputs;
+
+	osSemaphoreId_t semHandle;
+	osSemaphoreId_t procSemHandle;
+	osMessageQueueId_t outQueueHandle;
 }PDM_Readings_Thread_Struct;
 
 typedef struct{
@@ -834,11 +758,15 @@ void PDM_Config_Thread(void* threadStruct);
 /*END CONFIGURATION FUNCTION PROTOTYPES*/
 
 /*BEGIN PROCESS PROTOTYPES*/
-void PDM_Data_Cast(PDM_Data_Channel_Struct* dataStruct, uint8_t* buffer);
+void PDM_Data_Cast(PDM_Channel_CAN_Struct* dataStruct, uint8_t* buffer);
 
 //THREADS
 void PDM_Process_Thread(void* threadStruct);
 /*END PROCESS PROTOTYPES*/
+
+/*BEGIN READINGS AND FUSES PROTOTYPES*/
+//THREADS
+/*END READINGS AND FUSES PROTOTYPES*/
 
 /*BEGIN HSD CONTROL FUNCTION PROTOTYPES*/
 //THREADS

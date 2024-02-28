@@ -33,15 +33,16 @@ void PDM_Output_Thread(void* threadStruct)
 	for(;;)
 	{
 
-		osMessageQueueGet(thrdStr->outQueueHandle, NULL, 0, osWaitForever);
+		if(osMessageQueueGet(thrdStr->outQueueHandle, (void*) &processFlag, 0, osWaitForever) == osOK)
+		{
+			if((processFlag & PROCESS_OUTPUT) == PROCESS_OUTPUT)
+				Output_Set_Level(thrdStr->outStruct);
 
-		if((processFlag & PROCESS_OUTPUT) == PROCESS_OUTPUT)
-			Output_Set_Level(thrdStr->outStruct);
+			if((processFlag & PROCESS_PWM) == PROCESS_PWM)
+				Output_Set_PWM(thrdStr->pwmStruct);
 
-		else if((processFlag & PROCESS_PWM) == PROCESS_PWM)
-			Output_Set_PWM(thrdStr->pwmStruct);
-
-//		else if((processFlag & PROCESS_PWM_SS) == PROCESS_PWM_SS)
+	//		else if((processFlag & PROCESS_PWM_SS) == PROCESS_PWM_SS)
+		}
 
 
 #if(INCLUDE_uxTaskGetStackHighWaterMark == 1)
@@ -69,7 +70,7 @@ static void Output_Set_Level(PDM_Output_Ctrl_Struct* outStruct)
 		//Set output state variable
 		if((*outStruct[i].inputFunc == Result_True)
 				&& (outStruct[i].inputFunc != NULL)
-				&& (*outStruct[i].fuseSatus != Fuse_Open))
+				&& (*outStruct[i].fuseStatus != Fuse_Open))
 			outStruct[i].outputState = GPIO_PIN_SET;
 
 		else
@@ -100,10 +101,17 @@ static void Output_Set_PWM(PDM_PWM_Ctrl_Struct* pwmStruct)
 
 			//Set value based on preset
 			else
+			{
 				for(uint8_t j = 0; j < PWM_NBR_OF_PRESETS; j++)
+				{
 					if((*pwmStruct[i].presetInputs[j] == Result_True)
 							&& (pwmStruct[i].presetInputs[j] != NULL))
+					{
 						dutyCycle = pwmStruct[i].presetDutyCycle[j];
+						break;
+					}
+				}
+			}
 
 			//Check if there was no activation yet
 			if(dutyCycle == PWM_MIN_DUTY_CYCLE)

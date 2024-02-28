@@ -50,7 +50,8 @@ Core/Src/pdm_driver_control.o: ../Core/Src/pdm_driver_control.c \
  ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h \
- ../USB_DEVICE/Target/usbd_conf.h ../Core/Inc/main.h
+ ../USB_DEVICE/Target/usbd_conf.h ../Core/Inc/main.h \
+ ../Core/Inc/pdm_specific.h ../Core/Inc/pdm.h
 ../Core/Inc/pdm.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
@@ -105,3 +106,5 @@ Core/Src/pdm_driver_control.o: ../Core/Src/pdm_driver_control.c \
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h:
 ../USB_DEVICE/Target/usbd_conf.h:
 ../Core/Inc/main.h:
+../Core/Inc/pdm_specific.h:
+../Core/Inc/pdm.h:

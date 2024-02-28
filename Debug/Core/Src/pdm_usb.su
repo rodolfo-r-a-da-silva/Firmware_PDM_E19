@@ -1,1 +1,1 @@
-../Core/Src/pdm_usb.c:15:6:PDM_USB_Thread_Transmit_Data	40	static
+../Core/Src/pdm_usb.c:15:6:PDM_USB_Thread_Transmit_Data	24	static

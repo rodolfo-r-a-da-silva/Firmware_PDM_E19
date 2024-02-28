@@ -1,10 +1,5 @@
-../Core/Src/pdm_process.c:24:6:PDM_Data_Cast	7
-../Core/Src/pdm_process.c:78:6:PDM_Process_Thread	10
-../Core/Src/pdm_process.c:172:16:Channel_CAN_Process	17
-../Core/Src/pdm_process.c:270:16:Channel_Local_Process	8
-../Core/Src/pdm_process.c:328:16:Function_Input_Process	4
-../Core/Src/pdm_process.c:360:16:Function_Fuse_Process	5
-../Core/Src/pdm_process.c:394:16:Function_Custom_Process	94
-../Core/Src/pdm_process.c:625:16:Function_Result_Process	7
-../Core/Src/pdm_process.c:679:13:Read_Analog_Inputs	5
-../Core/Src/pdm_process.c:792:13:Fuse_Check_Status	15
+../Core/Src/pdm_process.c:19:6:PDM_Data_Cast	7
+../Core/Src/pdm_process.c:73:6:PDM_Process_Thread	4
+../Core/Src/pdm_process.c:115:16:Function_Custom_Process	50
+../Core/Src/pdm_process.c:317:16:Function_Result_Process	8
+../Core/Src/pdm_process.c:377:16:Input_Detect_Edge	6

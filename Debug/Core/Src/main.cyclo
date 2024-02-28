@@ -12,6 +12,6 @@
 ../Core/Src/main.c:777:13:MX_TIM8_Init	7
 ../Core/Src/main.c:850:13:MX_DMA_Init	1
 ../Core/Src/main.c:884:13:MX_GPIO_Init	1
-../Core/Src/main.c:989:6:StartSetupTask	1
-../Core/Src/main.c:1011:6:HAL_TIM_PeriodElapsedCallback	3
-../Core/Src/main.c:1032:6:Error_Handler	1
+../Core/Src/main.c:979:6:StartSetupTask	1
+../Core/Src/main.c:1001:6:HAL_TIM_PeriodElapsedCallback	3
+../Core/Src/main.c:1022:6:Error_Handler	1

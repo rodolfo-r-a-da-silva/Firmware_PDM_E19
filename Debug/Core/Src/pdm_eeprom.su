@@ -1,0 +1,2 @@
+../Core/Src/pdm_eeprom.c:12:17:Data_Freq_To_Period	16	static
+../Core/Src/pdm_eeprom.c:40:18:Data_Period_To_Freq	16	static
