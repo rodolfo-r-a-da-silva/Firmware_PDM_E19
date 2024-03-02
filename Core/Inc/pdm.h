@@ -80,7 +80,7 @@
 #define COUNTER_WRAP_TO_LOW		0x01
 #define COUNTER_WRAP_TO_HIGH	0x02
 
-#define NBR_OF_INTERP_POINTS	4
+#define NBR_OF_DATA_POINTS	4
 #define NBR_OF_DATA_RESULTS		2
 
 #define NBR_OF_FUNC_TIMES	2
@@ -183,18 +183,18 @@
 		if(__HTIM__->Instance == TIM6)					\
 			osSemaphoreRelease(__HSEMAPHORE__);
 
-#define __PDM_FUNCTION_EDGE_CONDITION(__FUNC_STRUCT__, __INPUT__)														\
+#define __PDM_FUNCTION_EDGE_CONDITION(__FUNC_STRUCT__, __INPUT__)																\
 		(((__FUNC_STRUCT__).inEdge[__INPUT__] == Edge_Both)																		\
-			|| (((__FUNC_STRUCT__).inEdge[__INPUT__] == Edge_Falling) && (*(__FUNC_STRUCT__).inputs[__INPUT__] == Result_False))	\
+			|| (((__FUNC_STRUCT__).inEdge[__INPUT__] == Edge_Falling) && (*(__FUNC_STRUCT__).inputs[__INPUT__] == Result_False))\
 			|| (((__FUNC_STRUCT__).inEdge[__INPUT__] == Edge_Rising) && (*(__FUNC_STRUCT__).inputs[__INPUT__] == Result_True)))
 
-#define __PDM_LINEAR_INTERPOLATION(__X__, __X0__, __X1__, __Y0__, __Y1__)						\
+/*#define __PDM_LINEAR_INTERPOLATION(__X__, __X0__, __X1__, __Y0__, __Y1__)						\
 		(((((__X__) - (__X0__)) * ((__Y1__) - (__Y0__))) / ((__X1__) - (__X0__))) + (__Y0__))
 
 #define __PDM_BILINEAR_INTERPOLATION(__X__, __Y__, __X0__, __X1__, __Y0__, __Y1__, __Z00__, __Z01__, __Z10__, __Z11__)	\
 		__PDM_LINEAR_INTERPOLATION((__Y__), (__Y0__), (__Y1__),															\
 				(__PDM_LINEAR_INTERPOLATION((__X__), (__X0__), (__X1__), (__Z00__), (__Z01__))),						\
-				(__PDM_LINEAR_INTERPOLATION((__X__), (__X0__), (__X1__), (__Z10__), (__Z11__))))
+				(__PDM_LINEAR_INTERPOLATION((__X__), (__X0__), (__X1__), (__Z10__), (__Z11__))))*/
 
 #define __PDM_OUT_SET_LEVEL(__OUT_STRUCT__)				\
 		HAL_GPIO_WritePin((__OUT_STRUCT__).outputGPIO,	\
@@ -484,8 +484,9 @@ typedef struct{
 	float filter[2];
 
 	//Values for result calculation via interpolation
-	int16_t adc[NBR_OF_INTERP_POINTS];
-	int16_t value[NBR_OF_INTERP_POINTS];
+	uint8_t nbrOfPoints;
+	int16_t adc[NBR_OF_DATA_POINTS];
+	int16_t value[NBR_OF_DATA_POINTS];
 
 	uint8_t inUse;	//Indicate if channel is used by functions or PWM outputs
 }PDM_Channel_Local_Struct;
@@ -752,6 +753,8 @@ void PDM_Fuse_Timer_Callback(void* callbackStruct);
 /*BEGIN CONFIGURATION FUNCTION PROTOTYPES*/
 //FUNCTIONS
 void PDM_Output_Reset(PDM_Output_Ctrl_Struct* outStruct, PDM_PWM_Ctrl_Struct* pwmStruct);
+int16_t PDM_Linear_Interpolation(int32_t x, int16_t x0, int16_t x1, int16_t y0, int16_t y1);
+int16_t PDM_Bilinear_Interpolation(int32_t x, int32_t y, int16_t x0, int16_t x1, int16_t y0, int16_t y1, int16_t z00, int16_t z01, int16_t z10, int16_t z11);
 
 //THREADS
 void PDM_Config_Thread(void* threadStruct);

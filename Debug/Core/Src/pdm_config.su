@@ -1,3 +1,5 @@
 ../Core/Src/pdm_config.c:14:6:PDM_Output_Reset	24	static
-../Core/Src/pdm_config.c:39:6:PDM_Config_Thread	32	static
-../Core/Src/pdm_config.c:71:13:Output_Init	168	static
+../Core/Src/pdm_config.c:35:9:PDM_Linear_Interpolation	24	static
+../Core/Src/pdm_config.c:41:9:PDM_Bilinear_Interpolation	40	static
+../Core/Src/pdm_config.c:58:6:PDM_Config_Thread	32	static
+../Core/Src/pdm_config.c:90:13:Output_Init	168	static

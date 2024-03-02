@@ -31,6 +31,25 @@ void PDM_Output_Reset(PDM_Output_Ctrl_Struct* outStruct, PDM_PWM_Ctrl_Struct* pw
 	return;
 }
 
+//Perform linear interpolation between two points
+int16_t PDM_Linear_Interpolation(int32_t x, int16_t x0, int16_t x1, int16_t y0, int16_t y1)
+{
+	return ((((x - x0) * (y1 - y0)) / (x1 - x0)) + y0);
+}
+
+//Perform bilinear interpolation between four points by using three linear interpolations
+int16_t PDM_Bilinear_Interpolation(int32_t x, int32_t y, int16_t x0, int16_t x1, int16_t y0, int16_t y1, int16_t z00, int16_t z01, int16_t z10, int16_t z11)
+{
+	int16_t mid[2];
+
+	//Interpolate two midpoints
+	mid[0] = PDM_Linear_Interpolation(x, x0, x1, z00, z01);
+	mid[1] = PDM_Linear_Interpolation(x, x0, x1, z10, z11);
+
+	//Get the interpolation between the two midpoints
+	return PDM_Linear_Interpolation(y, y0, y1, mid[0], mid[1]);
+}
+
 /*END FUNCTIONS*/
 
 //Initialize PDM

@@ -170,7 +170,7 @@ static void Analog_Read(TIM_HandleTypeDef* htim, PDM_Reading_Type* readingType, 
 }
 
 //Read Input Pin level
-//PDM_Channel_Local_Struct* chnStruct - Pointer to digital input channeç
+//PDM_Channel_Local_Struct* chnStruct - Pointer to digital input channel
 //PDM_Input_Struct* inStruct - Pointer to struct containing digital input pin information
 static uint8_t Digital_Read(PDM_Channel_Local_Struct* chnStruct, PDM_Input_Struct* inStruct)
 {
@@ -189,18 +189,37 @@ static uint8_t Digital_Read(PDM_Channel_Local_Struct* chnStruct, PDM_Input_Struc
 }
 
 //Convert and filter (IIR) ADC value
+//PDM_Channel_Local_Struct* chnStruct - Pointer to the channel's struct to be converted and filtered
 //int16_t adcVar - ADC variable for conversion
-//float** filter - Pointer to filter coefficients matrix
 static uint8_t Convert_Filter(PDM_Channel_Local_Struct* chnStruct, int16_t adcVar)
 {
 	//Convert ADC value
-	uint8_t aux = 0;
+	int16_t aux = 0;
 
 	//Set old data value
 	chnStruct->data[Data_Previous] = chnStruct->data[Data_Current];
 
 	//Calculate new data value via interpolation
+	if(adcVar > chnStruct->adc[0])
+	{
+		//Start loop using last two points for reference
+		for(uint8_t i = chnStruct->nbrOfPoints-2; i <= 0; i--)
+		{
+			if(adcVar >= chnStruct->adc[i])
+			{
+				aux = PDM_Linear_Interpolation((int32_t) adcVar,
+											   chnStruct->adc[i],
+											   chnStruct->adc[i+1],
+											   chnStruct->value[i],
+											   chnStruct->value[i+1]);
+				break;
+			}
+		}
+	}
 
+	//Get extrapolated minimum value if below threshold
+	else
+		aux = chnStruct->value[0];
 
 	//Calculate new filtered data value
 	chnStruct->data[Data_Current] = (int32_t) (chnStruct->filter[0]*aux

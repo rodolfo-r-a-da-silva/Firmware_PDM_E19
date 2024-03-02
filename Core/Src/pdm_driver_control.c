@@ -234,17 +234,17 @@ static uint16_t PWM_Set_Map_DutyCycle(PDM_PWM_Map_Struct* mapStruct)
 				//hen sets duty cycle via linear interpolation
 				if((*mapStruct->inputs[1] <= mapStruct->axis[1][0]) || (mapStruct->lengths[1] == 1))
 				{
-					retVal = __PDM_LINEAR_INTERPOLATION(*mapStruct->inputs[0],
-														 mapStruct->axis[0][x],
-														 mapStruct->axis[0][x + 1],
-														 mapStruct->map[x][0],
-														 mapStruct->map[x + 1][0]);
+					retVal = PDM_Linear_Interpolation(*mapStruct->inputs[0],
+													   mapStruct->axis[0][x],
+													   mapStruct->axis[0][x + 1],
+													   mapStruct->map[x][0],
+													   mapStruct->map[x + 1][0]);
 				}else{
-					retVal = __PDM_LINEAR_INTERPOLATION(*mapStruct->inputs[0],
-														 mapStruct->axis[0][x],
-														 mapStruct->axis[0][x + 1],
-														 mapStruct->map[x][mapStruct->lengths[1] - 1],
-														 mapStruct->map[x + 1][mapStruct->lengths[1] - 1]);
+					retVal = PDM_Linear_Interpolation(*mapStruct->inputs[0],
+													   mapStruct->axis[0][x],
+													   mapStruct->axis[0][x + 1],
+													   mapStruct->map[x][mapStruct->lengths[1] - 1],
+													   mapStruct->map[x + 1][mapStruct->lengths[1] - 1]);
 				}
 			}
 		}
@@ -264,17 +264,17 @@ static uint16_t PWM_Set_Map_DutyCycle(PDM_PWM_Map_Struct* mapStruct)
 				//Then sets duty cycle via linear interpolation
 				if(*mapStruct->inputs[0] <= mapStruct->axis[0][0])
 				{
-					retVal = __PDM_LINEAR_INTERPOLATION(*mapStruct->inputs[1],
-														 mapStruct->axis[1][y],
-														 mapStruct->axis[1][y + 1],
-														 mapStruct->map[0][y],
-														 mapStruct->map[0][y + 1]);
+					retVal = PDM_Linear_Interpolation(*mapStruct->inputs[1],
+													   mapStruct->axis[1][y],
+													   mapStruct->axis[1][y + 1],
+													   mapStruct->map[0][y],
+													   mapStruct->map[0][y + 1]);
 				}else{
-					retVal = __PDM_LINEAR_INTERPOLATION(*mapStruct->inputs[1],
-														 mapStruct->axis[1][y],
-														 mapStruct->axis[1][y + 1],
-														 mapStruct->map[mapStruct->lengths[0] - 1][y],
-														 mapStruct->map[mapStruct->lengths[0] - 1][y + 1]);
+					retVal = PDM_Linear_Interpolation(*mapStruct->inputs[1],
+													   mapStruct->axis[1][y],
+													   mapStruct->axis[1][y + 1],
+													   mapStruct->map[mapStruct->lengths[0] - 1][y],
+													   mapStruct->map[mapStruct->lengths[0] - 1][y + 1]);
 				}
 			}
 		}
@@ -295,16 +295,16 @@ static uint16_t PWM_Set_Map_DutyCycle(PDM_PWM_Map_Struct* mapStruct)
 					if((*mapStruct->inputs[1] >= mapStruct->axis[1][y])
 						&& (*mapStruct->inputs[1] <= mapStruct->axis[1][y + 1]))
 					{
-						retVal = __PDM_BILINEAR_INTERPOLATION(*mapStruct->inputs[0],
-															  *mapStruct->inputs[1],
-															   mapStruct->axis[0][x],
-															   mapStruct->axis[0][x + 1],
-															   mapStruct->axis[1][y],
-															   mapStruct->axis[1][y + 1],
-															   mapStruct->map[x][y],
-															   mapStruct->map[x + 1][y],
-															   mapStruct->map[x][y + 1],
-															   mapStruct->map[x + 1][y + 1]);
+						retVal = PDM_Bilinear_Interpolation(*mapStruct->inputs[0],
+														    *mapStruct->inputs[1],
+															 mapStruct->axis[0][x],
+															 mapStruct->axis[0][x + 1],
+															 mapStruct->axis[1][y],
+															 mapStruct->axis[1][y + 1],
+															 mapStruct->map[x][y],
+															 mapStruct->map[x + 1][y],
+															 mapStruct->map[x][y + 1],
+															 mapStruct->map[x + 1][y + 1]);
 					}
 				}
 			}
