@@ -49,13 +49,117 @@ HAL_StatusTypeDef PDM_CAN_Init(CAN_HandleTypeDef *hcan, PDM_CAN_Config* filter_s
 	//Reinitialize CAN bus
 	HAL_CAN_Init(hcan);
 
-	PDM_CAN_Filter_Config(hcan, 0, CAN_CONFIG_FILTER, CAN_CONFIG_MASK, CAN_ID_EXT);
+//	PDM_CAN_Filter_Config(hcan, 0, CAN_CONFIG_FILTER, CAN_CONFIG_MASK, CAN_ID_EXT);
 
 	//Initialize receive callbacks
-	HAL_CAN_ActivateNotification(hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+//	HAL_CAN_ActivateNotification(hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
 	//Starts CAN bus communication and leaves the function
 	return HAL_CAN_Start(hcan);
+}
+
+//Start data transmission for data with specific frequency
+//CAN_HandleTypeDef *hcan - CAN handler struct pointer
+//Returns HAL_CAN_AddTxMessage status
+HAL_StatusTypeDef PDM_CAN_Transmit_Current(CAN_HandleTypeDef* hcan)
+{
+	HAL_StatusTypeDef ret_val = HAL_OK;
+
+	//Prepares transmission header
+	canTxMessage.DLC = 8;
+	canTxMessage.IDE = CAN_ID_STD;
+	canTxMessage.RTR = CAN_RTR_DATA;
+	canTxMessage.TransmitGlobalTime = DISABLE;
+
+	canTxMessage.StdId = CAN_ID_CURRENT;
+	canTxData[0] = dataBuffer[0] >> 8;
+	canTxData[1] = dataBuffer[0] & 0xff;
+	canTxData[2] = dataBuffer[1] >> 8;
+	canTxData[3] = dataBuffer[1] & 0xff;
+	canTxData[4] = dataBuffer[2] >> 8;
+	canTxData[5] = dataBuffer[2] & 0xff;
+	canTxData[6] = dataBuffer[3] >> 8;
+	canTxData[7] = dataBuffer[3] & 0xff;
+
+	HAL_CAN_AddTxMessage(hcan, &canTxMessage, canTxData, &canTxMailbox);
+
+	//Wait Transmission finish
+	for(uint8_t i = 0; HAL_CAN_GetTxMailboxesFreeLevel(hcan) != 3 && i < 3; i++);
+
+	canTxMessage.StdId = CAN_ID_CURRENT+1;
+	canTxData[0] = dataBuffer[4] >> 8;
+	canTxData[1] = dataBuffer[4] & 0xff;
+	canTxData[2] = dataBuffer[5] >> 8;
+	canTxData[3] = dataBuffer[5] & 0xff;
+	canTxData[4] = dataBuffer[6] >> 8;
+	canTxData[5] = dataBuffer[6] & 0xff;
+	canTxData[6] = dataBuffer[7] >> 8;
+	canTxData[7] = dataBuffer[7] & 0xff;
+
+	HAL_CAN_AddTxMessage(hcan, &canTxMessage, canTxData, &canTxMailbox);
+
+	//Wait Transmission finish
+	for(uint8_t i = 0; HAL_CAN_GetTxMailboxesFreeLevel(hcan) != 3 && i < 3; i++);
+
+	canTxMessage.StdId = CAN_ID_CURRENT+2;
+	canTxData[0] = dataBuffer[8] >> 8;
+	canTxData[1] = dataBuffer[8] & 0xff;
+	canTxData[2] = dataBuffer[9] >> 8;
+	canTxData[3] = dataBuffer[9] & 0xff;
+	canTxData[4] = dataBuffer[10] >> 8;
+	canTxData[5] = dataBuffer[10] & 0xff;
+	canTxData[6] = dataBuffer[11] >> 8;
+	canTxData[7] = dataBuffer[11] & 0xff;
+
+	HAL_CAN_AddTxMessage(hcan, &canTxMessage, canTxData, &canTxMailbox);
+
+	//Wait Transmission finish
+	for(uint8_t i = 0; HAL_CAN_GetTxMailboxesFreeLevel(hcan) != 3 && i < 3; i++);
+
+	canTxMessage.StdId = CAN_ID_CURRENT+3;
+	canTxData[0] = dataBuffer[12] >> 8;
+	canTxData[1] = dataBuffer[12] & 0xff;
+	canTxData[2] = dataBuffer[13] >> 8;
+	canTxData[3] = dataBuffer[13] & 0xff;
+	canTxData[4] = dataBuffer[14] >> 8;
+	canTxData[5] = dataBuffer[14] & 0xff;
+	canTxData[6] = dataBuffer[15] >> 8;
+	canTxData[7] = dataBuffer[15] & 0xff;
+
+	ret_val = HAL_CAN_AddTxMessage(hcan, &canTxMessage, canTxData, &canTxMailbox);
+
+	//Wait Transmission finish
+	for(uint8_t i = 0; HAL_CAN_GetTxMailboxesFreeLevel(hcan) != 3 && i < 3; i++);
+
+	return ret_val;
+}
+
+//Start data transmission for data with specific frequency
+//CAN_HandleTypeDef *hcan - CAN handler struct pointer
+//Returns HAL_CAN_AddTxMessage status
+HAL_StatusTypeDef PDM_CAN_Transmit_Misc(CAN_HandleTypeDef* hcan)
+{
+	HAL_StatusTypeDef ret_val = HAL_OK;
+
+	//Prepares transmission header
+	canTxMessage.DLC = 8;
+	canTxMessage.IDE = CAN_ID_STD;
+	canTxMessage.RTR = CAN_RTR_DATA;
+	canTxMessage.TransmitGlobalTime = DISABLE;
+	canTxMessage.StdId = CAN_ID_MISC;
+
+	canTxData[0] = dataBuffer[24] >> 8;
+	canTxData[1] = dataBuffer[24] & 0xff;
+	canTxData[2] = dataBuffer[25] >> 8;
+	canTxData[3] = dataBuffer[25] & 0xff;
+	// TODO: add output pin status
+
+	ret_val = HAL_CAN_AddTxMessage(hcan, &canTxMessage, canTxData, &canTxMailbox);
+
+	//Wait Transmission finish
+	for(uint8_t i = 0; HAL_CAN_GetTxMailboxesFreeLevel(hcan) != 3 && i < 3; i++);
+
+	return ret_val;
 }
 
 //Start data transmission for data with specific frequency

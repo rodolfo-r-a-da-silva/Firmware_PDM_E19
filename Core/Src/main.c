@@ -147,35 +147,36 @@ int main(void)
 	  if(accMsg10Hz >= DATA_FREQ_10HZ)
 	  {
 		  accMsg10Hz = 0;
-		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_10Hz);
+//		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_10Hz);
 	  }
 
 	  //Transmit 25 Hz data channels via CAN bus if accumulator is above time threshold
 	  if(accMsg25Hz >= DATA_FREQ_25HZ)
 	  {
 		  accMsg25Hz = 0;
-		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_25Hz);
+//		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_25Hz);
 	  }
 
 	  //Transmit 50 Hz data channels via CAN bus if accumulator is above time threshold
 	  if(accMsg50Hz >= DATA_FREQ_50HZ)
 	  {
 		  accMsg50Hz = 0;
-		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_50Hz);
+		  PDM_CAN_Transmit_Current(&hcan1);
+//		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_50Hz);
 	  }
 
 	  //Transmit 80 Hz data channels via CAN bus if accumulator is above time threshold
 	  if(accMsg80Hz >= DATA_FREQ_80HZ)
 	  {
 		  accMsg80Hz = 0;
-		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_80Hz);
+//		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_80Hz);
 	  }
 
 	  //Transmit 100 Hz data channels via CAN bus if accumulator is above time threshold
 	  if(accMsg100Hz >= DATA_FREQ_100HZ)
 	  {
 		  accMsg100Hz = 0;
-		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_100Hz);
+//		  PDM_CAN_Transmit_Data(&hcan1, Data_Freq_100Hz);
 	  }
 
 	  //Checks if USB accumulator is above time threshold

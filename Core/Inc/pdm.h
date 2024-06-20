@@ -17,6 +17,11 @@
 #define CAN_DATA_ID					0x1E35C000
 #define CAN_DATA_MASK				0x1FFFF000
 
+// TODO: select available IDs
+#define CAN_ID_CURRENT		0x600
+#define CAN_ID_TEMPERATURE	0x604
+#define CAN_ID_MISC			0x606
+
 #define OUTPUT_FUSE_FREQ			25
 
 #define NBR_OF_DATA_CHANNELS		30
@@ -369,6 +374,8 @@ HAL_StatusTypeDef PDM_CAN_Init(CAN_HandleTypeDef *hcan, PDM_CAN_Config* filter_s
 
 HAL_StatusTypeDef PDM_PWM_CAN_Filter_Config(CAN_HandleTypeDef *hcan, PWM_Control_Struct *pwm_struct, uint8_t can_filter_bank);
 
+HAL_StatusTypeDef PDM_CAN_Transmit_Current(CAN_HandleTypeDef* hcan);
+HAL_StatusTypeDef PDM_CAN_Transmit_Misc(CAN_HandleTypeDef* hcan);
 HAL_StatusTypeDef PDM_CAN_Transmit_Data(CAN_HandleTypeDef* hcan, uint8_t data_freq);
 
 void PDM_CAN_Process_Rx_Data();
